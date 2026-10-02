@@ -157,9 +157,10 @@ js/builder3d.js       3D 쌓기 판 (Three.js)
 js/views2d.js         교과서식 위·앞·옆 그림
 js/screens/*.js       화면들 (로그인, 로비, 대결, 연습, 랭킹, 전적, 선생님)
 vendor/               Three.js r186 (MIT), Firebase JS SDK 12.19.0 (Apache-2.0) 묶음 파일
+vendor/fonts/         Pretendard 1.3.9 · Jua (둘 다 SIL OFL 1.1) 웹 글꼴
 tests/                단위 테스트
 ```
 - 테스트: `npm test` (Node 18 이상)
 - Firebase 에뮬레이터로 개발할 때: 주소 뒤에 `?emulator=127.0.0.1:9000` (인증 에뮬레이터는 9099 포트)
 - 로컬 실행: `python3 -m http.server 8080`
-- 빌드 과정이 없는 순수 HTML/JS입니다. 외부 CDN 없이 `vendor/`의 파일만 씁니다(학교망에서 CDN이 막혀도 동작하도록). 글꼴(Jua)만 Google Fonts에서 받으며, 막혀 있으면 기본 글꼴로 보입니다.
+- 빌드 과정이 없는 순수 HTML/JS입니다. 외부 CDN 없이 `vendor/`의 파일만 씁니다(학교망에서 CDN이 막혀도 동작하도록). 글꼴(본문 Pretendard, 제목 Jua)도 `vendor/fonts/`에 들어 있어 어느 기기에서나 같은 모양으로 보입니다.

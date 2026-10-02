@@ -27,3 +27,12 @@ export { getDatabase, ref, get, set, update, remove, push, runTransaction, onVal
 npx esbuild three-entry.js --bundle --format=esm --minify --legal-comments=eof --outfile=vendor/three.js
 npx esbuild fb-entry.js --bundle --format=esm --minify --legal-comments=eof --outfile=vendor/firebase.js
 ```
+
+## 글꼴 (`vendor/fonts/`)
+
+| 폴더 | 원본 | 버전 | 라이선스 |
+|---|---|---|---|
+| `pretendard/` | [pretendard](https://www.npmjs.com/package/pretendard) `dist/web/variable` (dynamic subset) | 1.3.9 | SIL OFL 1.1 |
+| `jua/` | [@fontsource/jua](https://www.npmjs.com/package/@fontsource/jua) (woff2만) | 5.3.0 | SIL OFL 1.1 |
+
+글자 범위별로 잘게 나뉜 파일이라, 브라우저는 화면에 쓰인 글자가 들어 있는 파일만 내려받습니다.

@@ -1,4 +1,4 @@
-import { h, toast, confirmBox, flash, confetti, josa, tierBadge, fmtClock, fmtDuration } from '../ui.js';
+import { h, toast, confirmBox, flash, confetti, josa, tierBadge, fmtClock, fmtDuration, avatar } from '../ui.js';
 import { db } from '../db.js';
 import { store, subscribe, standingOf, myStanding, isOnline } from '../store.js';
 import { LEVELS } from '../config.js';
@@ -89,9 +89,21 @@ export function mount(root, [gid]) {
     page.innerHTML = '';
     page.append(
       h('div', { class: 'vs-bar card' },
-        h('div', { class: 'vs-side me' }, sMe ? tierBadge(sMe, { size: 30, showName: false }) : null, h('b', null, g.players[me]), h('span', { class: 'muted small' }, ' (나)')),
+        h('div', { class: 'vs-player me' },
+          avatar(g.players[me], me),
+          h('div', { class: 'vs-info' },
+            h('div', { class: 'vs-name' }, g.players[me], h('span', { class: 'vs-you' }, '나')),
+            sMe ? tierBadge(sMe, { size: 22 }) : null,
+          ),
+        ),
         h('div', { class: 'vs-mid' }, h('span', { class: 'vs' }, 'VS'), h('span', { class: 'level-tag' }, LEVELS[p.level]?.name || ''), els.timer),
-        h('div', { class: 'vs-side opp' }, h('b', null, g.players[opp] || '상대'), sOpp ? tierBadge(sOpp, { size: 30, showName: false }) : null),
+        h('div', { class: 'vs-player opp' },
+          h('div', { class: 'vs-info' },
+            h('div', { class: 'vs-name' }, g.players[opp] || '상대'),
+            sOpp ? tierBadge(sOpp, { size: 22 }) : null,
+          ),
+          avatar(g.players[opp] || '상대', opp),
+        ),
       ),
       els.status,
       els.oppNotice,
@@ -101,7 +113,7 @@ export function mount(root, [gid]) {
           h('div', { class: 'toolbar' },
             h('div', { class: 'segmented' }, modeAdd, modeRemove),
             h('div', { class: 'view-btns' },
-              h('button', { class: 'btn btn-small', onclick: () => builder?.setView('home') }, '처음'),
+              h('button', { class: 'btn btn-small', title: '처음 시점', onclick: () => builder?.setView('home') }, '🏠 처음'),
               h('button', { class: 'btn btn-small vb-top', onclick: () => builder?.setView('top') }, '위'),
               h('button', { class: 'btn btn-small vb-front', onclick: () => builder?.setView('front') }, '앞'),
               h('button', { class: 'btn btn-small vb-side', onclick: () => builder?.setView('side') }, '옆'),
@@ -298,7 +310,8 @@ export function mount(root, [gid]) {
     page.innerHTML = '';
     page.append(
       h('section', { class: `card result-hero ${won ? 'win' : 'lose'}` },
-        h('div', { class: 'result-title' }, won ? '🏆 승리!' : '아쉬운 패배'),
+        h('div', { class: 'result-trophy', 'aria-hidden': 'true' }, won ? '🏆' : '💪'),
+        h('div', { class: 'result-title' }, won ? '승리!' : '아쉬운 패배'),
         h('p', null, reasonText, won ? '' : ' 다음 대결에서는 꼭 이길 수 있어요!'),
         h('div', { class: 'result-points' },
           d == null ? h('span', { class: 'muted' }, '점수 기록 중…')
@@ -315,7 +328,7 @@ export function mount(root, [gid]) {
       h('div', { class: 'game-grid' },
         puzzleCard(g.puzzle, { title: '문제' }),
         h('section', { class: 'card' },
-          h('h3', { class: 'card-title' }, '정답 모양과 내가 만든 모양'),
+          h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🔍'), '정답 모양과 내가 만든 모양'),
           h('div', { class: 'compare' },
             h('div', null, h('div', { class: 'compare-label' }, '✅ 정답'), solBox),
             h('div', null, h('div', { class: 'compare-label' }, '🧱 내가 만든 모양'), myBox),

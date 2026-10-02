@@ -8,7 +8,12 @@ export function h(tag, props, ...children) {
     for (const [k, v] of Object.entries(props)) {
       if (v == null || v === false) continue;
       if (k === 'class') el.className = v;
-      else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+      else if (k === 'style' && typeof v === 'object') {
+        for (const [sk, sv] of Object.entries(v)) {
+          if (sk.startsWith('--')) el.style.setProperty(sk, sv);
+          else el.style[sk] = sv;
+        }
+      }
       else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
       else if (k === 'html') el.innerHTML = v; // 우리 코드가 만든 고정 문자열에만 사용
       else if (v === true) el.setAttribute(k, '');
@@ -126,37 +131,93 @@ export async function promptBox(title, fields, okLabel = '확인', note) {
 
 // ───────── 티어 배지 ─────────
 let gradId = 0;
+const SHIELD_OUT = 'M32 5 L55 13.5 L55 33 C55 46.5 44.5 55 32 61 C19.5 55 9 46.5 9 33 L9 13.5 Z';
+const SHIELD_IN = 'M32 9.5 L50.5 16.5 L50.5 33 C50.5 43.8 42.2 51 32 56 C21.8 51 13.5 43.8 13.5 33 L13.5 16.5 Z';
+const SHIELD_GLOSS = 'M32 9.5 L50.5 16.5 L50.5 27 C42 31 22 31 13.5 27 L13.5 16.5 Z';
+const FEATHERS = [
+  'M13 22 C5 21 1 15 1 8 C7 13 11 14.5 15 15.5 Z',
+  'M12 31 C4.5 31 0 25.5 -1 19.5 C5.5 23.5 9.5 24.5 13.5 24.5 Z',
+  'M12.5 40 C5.5 40.5 1 36 -0.5 30.5 C5.5 33.5 9.5 34 13.5 33.5 Z',
+];
+
+// 쌓기나무 무늬가 들어간 방패 모양 티어 엠블럼
 export function tierEmblem(tier, size = 40) {
   const t = tier || UNRANKED;
   const idx = TIERS.indexOf(t);
   const id = `tg${++gradId}`;
   const svg = svgEl('svg', { viewBox: '0 0 64 64', width: size, height: size, class: 'tier-emblem', 'aria-hidden': 'true' });
   const defs = svgEl('defs');
-  const grad = svgEl('linearGradient', { id, x1: '0', y1: '0', x2: '0', y2: '1' });
-  grad.appendChild(svgEl('stop', { offset: '0', 'stop-color': t.color }));
-  grad.appendChild(svgEl('stop', { offset: '1', 'stop-color': t.color2 }));
-  defs.appendChild(grad);
+  const face = svgEl('linearGradient', { id: `${id}f`, x1: '0', y1: '0', x2: '0.3', y2: '1' });
+  face.appendChild(svgEl('stop', { offset: '0', 'stop-color': t.color }));
+  face.appendChild(svgEl('stop', { offset: '1', 'stop-color': t.color2 }));
+  const gold = svgEl('linearGradient', { id: `${id}g`, x1: '0', y1: '0', x2: '0', y2: '1' });
+  gold.appendChild(svgEl('stop', { offset: '0', 'stop-color': '#fff1a8' }));
+  gold.appendChild(svgEl('stop', { offset: '1', 'stop-color': '#f5a623' }));
+  defs.append(face, gold);
   svg.appendChild(defs);
-  // 높은 티어일수록 날개/왕관 장식
-  if (idx >= 0 && idx <= 3) {
-    svg.appendChild(svgEl('path', { d: 'M6 26 L14 18 L16 34 Z M58 26 L50 18 L48 34 Z', fill: t.color, opacity: '0.85' }));
+
+  // 날개: 에메랄드 이상 (높을수록 깃털이 많아짐)
+  const feathers = idx < 0 ? 0 : idx === 0 ? 3 : idx <= 2 ? 2 : idx <= 4 ? 1 : 0;
+  if (feathers) {
+    const wing = svgEl('g', { fill: t.color, stroke: t.color2, 'stroke-width': '1', 'stroke-linejoin': 'round' });
+    FEATHERS.slice(0, feathers).forEach((d) => wing.appendChild(svgEl('path', { d })));
+    const mirror = wing.cloneNode(true);
+    mirror.setAttribute('transform', 'matrix(-1 0 0 1 64 0)');
+    svg.append(wing, mirror);
   }
-  if (idx >= 0 && idx <= 2) {
-    svg.appendChild(svgEl('path', { d: 'M20 12 L24 4 L28 10 L32 2 L36 10 L40 4 L44 12 Z', fill: '#fde047', stroke: '#a16207', 'stroke-width': '1.2' }));
-  }
-  svg.appendChild(svgEl('path', {
-    d: 'M32 8 L52 16 L52 34 C52 46 42 54 32 60 C22 54 12 46 12 34 L12 16 Z',
-    fill: `url(#${id})`, stroke: '#ffffff', 'stroke-width': '2.5',
-  }));
+  // 방패
+  svg.appendChild(svgEl('path', { d: SHIELD_OUT, fill: t.color2 }));
+  svg.appendChild(svgEl('path', { d: SHIELD_IN, fill: `url(#${id}f)`, stroke: 'rgba(255,255,255,0.55)', 'stroke-width': '1.2' }));
+  svg.appendChild(svgEl('path', { d: SHIELD_GLOSS, fill: '#ffffff', opacity: '0.2' }));
   if (idx < 0) {
-    svg.appendChild(svgEl('text', { x: '32', y: '43', 'text-anchor': 'middle', 'font-size': '24', 'font-weight': '700', fill: '#fff' }, '?'));
+    svg.appendChild(svgEl('text', { x: '32', y: '42', 'text-anchor': 'middle', 'font-size': '24', 'font-family': 'Jua, sans-serif', fill: '#fff' }, '?'));
   } else {
-    // 가운데 쌓기나무 모양 보석
-    svg.appendChild(svgEl('path', { d: 'M32 20 L43 26 L32 32 L21 26 Z', fill: '#ffffff', opacity: '0.95' }));
-    svg.appendChild(svgEl('path', { d: 'M21 26 L32 32 L32 45 L21 39 Z', fill: '#ffffff', opacity: '0.6' }));
-    svg.appendChild(svgEl('path', { d: 'M43 26 L32 32 L32 45 L43 39 Z', fill: '#ffffff', opacity: '0.35' }));
+    // 가운데 쌓기나무
+    const cube = svgEl('g', { stroke: t.color2, 'stroke-width': '0.9', 'stroke-linejoin': 'round' });
+    cube.appendChild(svgEl('path', { d: 'M32 21 L42.5 27 L32 33 L21.5 27 Z', fill: '#ffffff' }));
+    cube.appendChild(svgEl('path', { d: 'M21.5 27 L32 33 L32 45 L21.5 39 Z', fill: '#ffffff', 'fill-opacity': '0.72' }));
+    cube.appendChild(svgEl('path', { d: 'M42.5 27 L32 33 L32 45 L42.5 39 Z', fill: '#ffffff', 'fill-opacity': '0.45' }));
+    svg.appendChild(cube);
+  }
+  // 아이언~실버: 리벳, 골드·플래티넘: 옆 보석
+  if (idx >= 7) {
+    for (const [cx, cy] of [[18, 19], [46, 19]]) svg.appendChild(svgEl('circle', { cx, cy, r: '1.8', fill: '#fff', opacity: '0.7' }));
+  } else if (idx === 5 || idx === 6) {
+    for (const x of [9, 55]) svg.appendChild(svgEl('path', { d: `M${x} 26 l3 4 -3 4 -3 -4 Z`, fill: '#fff', stroke: t.color2, 'stroke-width': '1' }));
+  }
+  // 왕관: 마스터 이상
+  if (idx >= 0 && idx <= 2) {
+    svg.appendChild(svgEl('path', {
+      d: 'M21 10.5 L22.5 2.5 L27.5 7 L32 0 L36.5 7 L41.5 2.5 L43 10.5 Z',
+      fill: `url(#${id}g)`, stroke: '#a16207', 'stroke-width': '1', 'stroke-linejoin': 'round',
+    }));
+    svg.appendChild(svgEl('circle', { cx: '32', cy: '7.2', r: '1.6', fill: idx === 0 ? '#3b6ff5' : t.color2 }));
+  }
+  // 반짝이: 챌린저
+  if (idx === 0) {
+    for (const [x, y, s] of [[5, 46, 3.2], [59, 46, 3.2], [54, 4, 2.4]]) {
+      svg.appendChild(svgEl('path', { d: `M${x} ${y - s} L${x + s * 0.3} ${y - s * 0.3} L${x + s} ${y} L${x + s * 0.3} ${y + s * 0.3} L${x} ${y + s} L${x - s * 0.3} ${y + s * 0.3} L${x - s} ${y} L${x - s * 0.3} ${y - s * 0.3} Z`, fill: '#ffd43b' }));
+    }
   }
   return svg;
+}
+
+// 이름 첫 글자 아바타 (세 글자 이상 한글 이름은 성을 빼고 이름 첫 글자)
+const AVATAR_COLORS = [
+  ['#8aa2ff', '#4c6fff'], ['#ffa477', '#f2475a'], ['#4fe0a5', '#12a564'], ['#ffd25c', '#f08c00'],
+  ['#c08bff', '#7b3fe4'], ['#52e0d6', '#0f9f9b'], ['#ff8fc0', '#e0457b'], ['#7fc7ff', '#2f7fd8'],
+];
+export function avatar(name, key, state) {
+  const n = String(name || '?').trim();
+  let hsh = 0;
+  for (const ch of String(key || n)) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
+  const [a1, a2] = AVATAR_COLORS[hsh % AVATAR_COLORS.length];
+  const isHangul = /^[가-힣]+$/.test(n);
+  const letter = isHangul && n.length >= 3 ? n[1] : n[0] || '?';
+  return h('span', { class: 'avatar', style: { '--a1': a1, '--a2': a2 }, 'aria-hidden': 'true' },
+    letter,
+    state ? h('i', { class: `online-dot state-${state}` }) : null,
+  );
 }
 
 export function tierBadge(standing, { size = 28, showName = true } = {}) {

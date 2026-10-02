@@ -2,14 +2,14 @@
 import { h, svgEl } from './ui.js';
 
 const CELL = 30;
-const FILL = '#f7b27c';
-const STROKE = '#b45f2a';
-const GRID = '#4cb5e8';
+const FILL = '#ffb47a';
+const STROKE = '#c46a2c';
+const GRID = '#8ec5ef';
 
 export const VIEW_COLORS = {
-  top: { bg: '#bfe5b4', name: '위에서 본 모양' },
-  front: { bg: '#f4dc98', name: '앞에서 본 모양' },
-  side: { bg: '#f8bdd0', name: '옆에서 본 모양' },
+  top: { bg: '#c4ecb7', name: '위에서 본 모양' },
+  front: { bg: '#fbe2a0', name: '앞에서 본 모양' },
+  side: { bg: '#fbc6d8', name: '옆에서 본 모양' },
 };
 
 // cols×rows 격자. isFilled(c, r)에서 r=0은 그림의 맨 윗줄.
@@ -46,12 +46,12 @@ function gridSVG(cols, rows, isFilled, { arrows = false, label } = {}) {
     const cx = 2 + (cols * CELL) / 2;
     const by = 2 + rows * CELL;
     svg.appendChild(svgEl('line', { x1: cx, y1: by + 26, x2: cx, y2: by + 7, stroke: '#333', 'stroke-width': 1.6, 'marker-end': 'url(#arrowhead)' }));
-    svg.appendChild(svgEl('circle', { cx, cy: by + 36, r: 9, fill: '#f2d675' }));
+    svg.appendChild(svgEl('circle', { cx, cy: by + 36, r: 9, fill: '#f6d76b' }));
     svg.appendChild(svgEl('text', { x: cx, y: by + 40, 'text-anchor': 'middle', 'font-size': 10, fill: '#7a5b00', 'font-weight': 700 }, '앞'));
     const rx = 2 + cols * CELL;
     const cy = 2 + (rows * CELL) / 2;
     svg.appendChild(svgEl('line', { x1: rx + 26, y1: cy, x2: rx + 7, y2: cy, stroke: '#333', 'stroke-width': 1.6, 'marker-end': 'url(#arrowhead)' }));
-    svg.appendChild(svgEl('circle', { cx: rx + 35, cy, r: 9, fill: '#f6a6bf' }));
+    svg.appendChild(svgEl('circle', { cx: rx + 35, cy, r: 9, fill: '#f8a9c4' }));
     svg.appendChild(svgEl('text', { x: rx + 35, y: cy + 4, 'text-anchor': 'middle', 'font-size': 10, fill: '#8a1c45', 'font-weight': 700 }, '옆'));
     const defs = svgEl('defs');
     const marker = svgEl('marker', { id: 'arrowhead', markerWidth: 8, markerHeight: 8, refX: 6, refY: 4, orient: 'auto' });

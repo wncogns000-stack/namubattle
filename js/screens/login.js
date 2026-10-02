@@ -1,4 +1,4 @@
-import { h, toast } from '../ui.js';
+import { h, svgEl, toast } from '../ui.js';
 import { db } from '../db.js';
 import { store } from '../store.js';
 import { loginStudent } from '../auth.js';
@@ -25,8 +25,8 @@ export function mount(root) {
     }
   } },
     h('div', { class: 'login-hero' },
-      h('div', { class: 'logo-blocks', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i')),
-      h('h1', null, '쌓기나무 배틀'),
+      heroArt(),
+      h('h1', null, '쌓기나무 ', h('em', null, '배틀')),
       h('p', { class: 'muted' }, '위·앞·옆에서 본 모양을 보고 먼저 똑같이 만들면 승리!'),
     ),
     h('label', { class: 'field' }, h('span', null, '이름'), nameInput),
@@ -46,4 +46,25 @@ export function mount(root) {
     form,
   ));
   setTimeout(() => nameInput.focus(), 50);
+}
+
+// 계단 모양으로 쌓은 쌓기나무 그림
+function heroArt() {
+  const A = 12.12, B = 7, H = 14;
+  const cubes = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [0, 0, 2]]
+    .sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]) || p[2] - q[2]);
+  const svg = svgEl('svg', { viewBox: '-30 -34 60 80', class: 'hero-art', 'aria-hidden': 'true' });
+  const g = svgEl('g', { stroke: '#a3561f', 'stroke-width': '0.9', 'stroke-linejoin': 'round' });
+  for (const [x, y, z] of cubes) {
+    const X = (x - y) * A, Y = (x + y) * B - z * H;
+    g.appendChild(svgEl('path', { d: `M${X} ${Y}l${A} ${B}-${A} ${B}-${A}-${B}z`, fill: '#ffd9b0' }));
+    g.appendChild(svgEl('path', { d: `M${X - A} ${Y + B}l${A} ${B}v${H}l-${A}-${B}z`, fill: '#f8a764' }));
+    g.appendChild(svgEl('path', { d: `M${X} ${Y + 2 * B}l${A}-${B}v${H}l-${A} ${B}z`, fill: '#e27f3c' }));
+  }
+  svg.appendChild(g);
+  // 반짝이
+  for (const [x, y, r] of [[-24, -20, 3], [22, -26, 2.4], [26, 2, 2]]) {
+    svg.appendChild(svgEl('path', { d: `M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}z`, fill: '#ffc53d' }));
+  }
+  return svg;
 }

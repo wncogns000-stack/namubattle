@@ -4,8 +4,7 @@
 import * as THREE from '../vendor/three.js';
 import { emptyHeights } from './puzzle.js';
 
-const BLOCK_COLOR = 0xf4a462;
-const EDGE_COLOR = 0x7a4320;
+const EDGE_COLOR = 0x8a4a1f;
 
 const VIEW_DIRS = {
   home: [0.85, 0.95, 1.35],
@@ -24,21 +23,76 @@ function webglAvailable() {
   }
 }
 
-function labelTexture(text, bg, fg) {
+// '앞'·'옆' 표지 (Jua 글꼴이 늦게 불러와지면 다시 그림)
+function labelTexture(text, bg, fg, onUpdate) {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d');
-  g.fillStyle = bg;
-  g.beginPath();
-  g.arc(64, 64, 58, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = fg;
-  g.font = 'bold 54px "Jua", "Malgun Gothic", sans-serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(text, 64, 68);
+  const draw = () => {
+    g.clearRect(0, 0, 128, 128);
+    g.fillStyle = 'rgba(30, 35, 64, 0.18)';
+    g.beginPath();
+    g.arc(64, 68, 56, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(64, 62, 56, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = bg;
+    g.beginPath();
+    g.arc(64, 62, 48, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = fg;
+    g.font = '52px "Jua", "Pretendard Variable", "Malgun Gothic", sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, 64, 66);
+  };
+  draw();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  if (document.fonts?.load) {
+    document.fonts.load('52px "Jua"', text).then(() => { draw(); tex.needsUpdate = true; onUpdate && onUpdate(); }).catch(() => {});
+  }
+  return tex;
+}
+
+// 나무결 무늬 (교과서 쌓기나무처럼)
+let woodCanvas = null;
+function woodTexture() {
+  if (!woodCanvas) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 256, 256);
+    grad.addColorStop(0, '#ffbe7d');
+    grad.addColorStop(1, '#f6a25a');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 256, 256);
+    g.lineWidth = 2;
+    for (let i = 0; i < 10; i++) {
+      g.strokeStyle = `rgba(178, 92, 34, ${0.12 + (i % 3) * 0.05})`;
+      const y0 = 14 + i * 25;
+      g.beginPath();
+      for (let x = 0; x <= 256; x += 8) {
+        const y = y0 + Math.sin(x / 38 + i * 1.7) * 5 + Math.sin(x / 11 + i) * 1.2;
+        if (x === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    // 가장자리: 안쪽은 밝게, 바깥은 살짝 어둡게 (모서리가 둥글어 보이도록)
+    g.strokeStyle = 'rgba(255, 236, 214, 0.6)';
+    g.lineWidth = 12;
+    g.strokeRect(8, 8, 240, 240);
+    g.strokeStyle = 'rgba(150, 70, 20, 0.28)';
+    g.lineWidth = 5;
+    g.strokeRect(2.5, 2.5, 251, 251);
+    woodCanvas = c;
+  }
+  const tex = new THREE.CanvasTexture(woodCanvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   return tex;
 }
 
@@ -74,16 +128,16 @@ export class Builder3D {
     const camera = (this.camera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 200));
     this.target = new THREE.Vector3(0, Math.min(this.rows, 3) * 0.35, 0);
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xe8d6bc, 1.5));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.9);
-    sun.position.set(-1.5, 10, 6);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xf0dcc0, 1.55));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+    sun.position.set(-2, 10, 6);
     scene.add(sun);
 
-    // 바닥 판
+    // 바닥 판 (나무 쟁반 위의 격자)
     this.floorTiles = [];
-    const tileGeo = new THREE.PlaneGeometry(0.98, 0.98);
-    const tileMat = new THREE.MeshLambertMaterial({ color: 0xfdf3e3 });
-    const tileMatAlt = new THREE.MeshLambertMaterial({ color: 0xf6e6cc });
+    const tileGeo = new THREE.PlaneGeometry(1, 1);
+    const tileMat = new THREE.MeshLambertMaterial({ color: 0xfffaf1 });
+    const tileMatAlt = new THREE.MeshLambertMaterial({ color: 0xf8ecd8 });
     for (let y = 0; y < n; y++) {
       for (let x = 0; x < n; x++) {
         const m = new THREE.Mesh(tileGeo, (x + y) % 2 ? tileMatAlt : tileMat);
@@ -95,31 +149,45 @@ export class Builder3D {
         this.floorTiles.push(m);
       }
     }
-    const base = new THREE.Mesh(new THREE.PlaneGeometry(n + 0.3, n + 0.3), new THREE.MeshLambertMaterial({ color: 0xc9a77c }));
-    base.rotation.x = -Math.PI / 2;
-    base.position.y = -0.01;
-    scene.add(base);
+    // 칸 사이 선
+    const half = n / 2;
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i - half;
+      pts.push(-half, 0.004, t, half, 0.004, t, t, 0.004, -half, t, 0.004, half);
+    }
+    const gridGeo = new THREE.BufferGeometry();
+    gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    scene.add(new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({ color: 0xdcbf96 })));
+    const trayGeo = new THREE.BoxGeometry(n + 0.5, 0.3, n + 0.5);
+    const tray = new THREE.Mesh(trayGeo, new THREE.MeshLambertMaterial({ color: 0xe2bd8c }));
+    tray.position.y = -0.152;
+    scene.add(tray);
+    const trayEdges = new THREE.LineSegments(new THREE.EdgesGeometry(trayGeo), new THREE.LineBasicMaterial({ color: 0xb98b55 }));
+    trayEdges.position.copy(tray.position);
+    scene.add(trayEdges);
 
     if (markers) {
-      const front = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture('앞', '#f2d675', '#6b4f00'), depthTest: false }));
-      front.position.set(0, 0.3, n / 2 + 0.9);
-      front.scale.set(0.8, 0.8, 1);
+      const rerender = () => this.render();
+      const front = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture('앞', '#f6d76b', '#6b4f00', rerender), depthTest: false }));
+      front.position.set(0, 0.3, n / 2 + 1);
+      front.scale.set(0.85, 0.85, 1);
       scene.add(front);
-      const side = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture('옆', '#f6a6bf', '#7d1840'), depthTest: false }));
-      side.position.set(n / 2 + 0.9, 0.3, 0);
-      side.scale.set(0.8, 0.8, 1);
+      const side = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture('옆', '#f8a9c4', '#7d1840', rerender), depthTest: false }));
+      side.position.set(n / 2 + 1, 0.3, 0);
+      side.scale.set(0.85, 0.85, 1);
       scene.add(side);
     }
 
     this.blockGeo = new THREE.BoxGeometry(1, 1, 1);
     this.edgeGeo = new THREE.EdgesGeometry(this.blockGeo);
-    this.blockMat = new THREE.MeshLambertMaterial({ color: BLOCK_COLOR, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
-    this.edgeMat = new THREE.LineBasicMaterial({ color: EDGE_COLOR });
+    this.blockMat = new THREE.MeshLambertMaterial({ map: woodTexture(), color: 0xffffff, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+    this.edgeMat = new THREE.LineBasicMaterial({ color: EDGE_COLOR, transparent: true, opacity: 0.75 });
     this.blocks = new THREE.Group();
     scene.add(this.blocks);
 
     // 마우스를 올렸을 때 보이는 반투명 블록
-    this.ghost = new THREE.Mesh(this.blockGeo, new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.35, depthWrite: false }));
+    this.ghost = new THREE.Mesh(this.blockGeo, new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.42, depthWrite: false }));
     this.ghost.visible = false;
     scene.add(this.ghost);
 
@@ -276,7 +344,7 @@ export class Builder3D {
       } else if (this.mode === 'remove' && v > 0) {
         const top = this.blocks.children.find((m) => m.userData.x === t.x && m.userData.y === t.y && m.userData.z === v - 1);
         if (top) {
-          if (!this._removeMat) this._removeMat = new THREE.MeshLambertMaterial({ color: 0xef4444, transparent: true, opacity: 0.75 });
+          if (!this._removeMat) this._removeMat = new THREE.MeshLambertMaterial({ color: 0xf2475a, transparent: true, opacity: 0.78 });
           top.material = this._removeMat;
           this._highlighted = top;
         }

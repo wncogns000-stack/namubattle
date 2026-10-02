@@ -1,4 +1,4 @@
-import { h, tierBadge, tierEmblem, toast } from '../ui.js';
+import { h, tierBadge, tierEmblem, toast, avatar } from '../ui.js';
 import { db } from '../db.js';
 import { store, subscribe, isOnline, presenceState, myStanding } from '../store.js';
 import { TIERS } from '../config.js';
@@ -18,8 +18,8 @@ export function mount(root) {
     profileBox,
     h('section', { class: 'card' },
       h('div', { class: 'card-head' },
-        h('h3', { class: 'card-title' }, '🟢 지금 접속한 친구'),
-        h('a', { class: 'btn btn-small', href: '#/practice' }, '혼자 연습하기'),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '👋'), '지금 접속한 친구'),
+        h('a', { class: 'btn btn-small', href: '#/practice' }, '🧩 혼자 연습하기'),
       ),
       listBox,
     ),
@@ -45,21 +45,27 @@ export function mount(root) {
     profileBox.innerHTML = '';
     if (!me) return;
     const st = streakOf(history);
-    profileBox.appendChild(h('section', { class: `card profile tier-bg-${me.tier.id}` },
-      h('div', { class: 'profile-emblem' }, tierEmblem(me.tier, 92)),
-      h('div', { class: 'profile-main' },
-        h('div', { class: 'profile-name' }, me.name),
-        h('div', { class: 'profile-tier' }, me.ranked ? me.tier.name : `배치고사 ${me.games}/${me.games + me.placementLeft}`),
-        h('div', { class: 'profile-stats' },
-          h('span', null, '점수 ', h('b', null, me.rating)),
-          me.ranked ? h('span', null, '순위 ', h('b', null, `${me.rank + 1}등`), ` / ${store.standings.rankedCount}명`) : null,
-          h('span', null, h('b', null, `${me.wins}승 ${me.losses}패`)),
-          h('span', null, '승률 ', h('b', null, formatWinRate(me.wins, me.losses))),
-          st.n >= 2 ? h('span', { class: st.win ? 'streak-win' : 'streak-lose' }, st.win ? `🔥 ${st.n}연승 중` : `${st.n}연패… 힘내요!`) : null,
+    profileBox.appendChild(h('section', { class: `card player-card tier-bg-${me.tier.id}` },
+      h('div', { class: 'pc-emblem' }, tierEmblem(me.tier, 104)),
+      h('div', { class: 'pc-main' },
+        h('div', { class: 'row-gap' },
+          h('span', { class: 'pc-tier' }, me.ranked ? me.tier.name : `배치고사 ${me.games}/${me.games + me.placementLeft}`),
+          st.n >= 2 ? h('span', { class: `streak ${st.win ? '' : 'lose'}` }, st.win ? `🔥 ${st.n}연승 중` : `${st.n}연패… 힘내요!`) : null,
         ),
-        h('div', { class: 'muted small' }, rangeText(me)),
+        h('div', { class: 'pc-name' }, me.name),
+        h('div', { class: 'stat-tiles' },
+          stat('점수', me.rating),
+          me.ranked ? stat('순위', `${me.rank + 1}등`, `/${store.standings.rankedCount}`) : null,
+          stat('전적', `${me.wins}승 ${me.losses}패`),
+          stat('승률', formatWinRate(me.wins, me.losses)),
+        ),
+        h('div', { class: 'pc-note' }, rangeText(me)),
       ),
     ));
+  }
+
+  function stat(label, value, sub) {
+    return h('div', { class: 'stat' }, h('span', { class: 'stat-label' }, label), h('span', { class: 'stat-value' }, value, sub ? h('small', null, sub) : null));
   }
 
   function renderList() {
@@ -85,12 +91,19 @@ export function mount(root) {
         class: `btn ${pending ? '' : 'btn-primary'} btn-small`,
         disabled: !!pending || !!session.activeGame,
         onclick: () => sendInvite(s.uid).catch((e) => toast(e.message, 'error')),
-      }, pending ? '신청함' : '대결 신청');
+      }, pending ? '신청함' : '⚔️ 대결 신청');
       ul.appendChild(h('li', { class: `player-row ${ok ? '' : 'dim'}` },
-        h('span', { class: `dot-online state-${state}` }),
-        tierBadge(s, { size: 30 }),
-        h('span', { class: 'player-name' }, s.name),
-        h('span', { class: 'player-meta' }, `${s.rating}점 · ${s.wins}승 ${s.losses}패 · ${STATE_LABEL[state] || ''}`),
+        avatar(s.name, s.uid, state),
+        h('div', { class: 'pr-main' },
+          h('div', { class: 'pr-top' },
+            h('span', { class: 'player-name' }, s.name),
+            h('span', { class: `status-chip state-${state}` }, STATE_LABEL[state] || ''),
+          ),
+          h('span', { class: 'player-meta' },
+            tierBadge(s, { size: 20 }),
+            h('span', null, `${s.rating}점 · ${s.wins}승 ${s.losses}패`),
+          ),
+        ),
         btn,
       ));
     }
@@ -102,10 +115,10 @@ export function mount(root) {
     const games = Object.entries(store.live || {});
     if (!games.length) return;
     liveBox.appendChild(h('section', { class: 'card' },
-      h('h3', { class: 'card-title' }, '⚔️ 지금 진행 중인 대결'),
-      h('ul', { class: 'live-list' }, games.map(([, g]) => {
+      h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🔥'), '지금 진행 중인 대결'),
+      h('div', { class: 'live-chips' }, games.map(([, g]) => {
         const names = Object.values(g.players || {});
-        return h('li', null, h('b', null, names[0] || '?'), ' vs ', h('b', null, names[1] || '?'), h('span', { class: 'muted' }, ` · ${g.level}단계`));
+        return h('span', { class: 'live-chip' }, names[0] || '?', h('span', { class: 'swords' }, '⚔️'), names[1] || '?', h('span', { class: 'lv' }, `${g.level}단계`));
       })),
     ));
   }

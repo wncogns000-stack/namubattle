@@ -66,8 +66,8 @@ export function mount(root) {
     box.innerHTML = '';
     box.append(
       h('div', { class: 'card teacher-head' },
-        h('h2', null, '👩‍🏫 선생님 페이지'),
-        h('span', { class: 'muted' }, db.mode === 'local' ? '체험 모드 (이 브라우저에만 저장)' : 'Firebase 연결됨'),
+        h('h2', { class: 'card-title', style: { margin: '0' } }, h('span', { class: 'title-icon' }, '👩‍🏫'), '선생님 페이지'),
+        h('span', { class: 'mode-chip' }, db.mode === 'local' ? '💡 체험 모드 (이 브라우저에만 저장)' : '🟢 Firebase 연결됨'),
         h('button', { class: 'btn btn-small', onclick: () => { logoutTeacher(); start(); } }, '나가기'),
       ),
       tabBar,
@@ -93,7 +93,7 @@ export function mount(root) {
     const ta = h('textarea', { rows: 6, placeholder: '한 줄에 한 명씩: 번호 이름 비밀번호\n예)\n1 김민준 1234\n2 이서연 5678' });
     el.append(
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, `학생 목록 (${list.length}명)`),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🧑‍🎓'), `학생 목록 (${list.length}명)`),
         list.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
           h('thead', null, h('tr', null, ['번호', '이름', '티어', '점수', '전적', '승률', '접속', ''].map((t) => h('th', null, t)))),
           h('tbody', null, list.map((s) => h('tr', null,
@@ -114,7 +114,7 @@ export function mount(root) {
         list.length ? h('button', { class: 'btn btn-small', onclick: exportCsv }, '📥 전적 CSV 내려받기') : null,
       ),
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, '학생 등록'),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '➕'), '학생 등록'),
         h('p', { class: 'muted small' }, '번호·이름·비밀번호를 띄어쓰기, 쉼표 또는 탭으로 구분해 붙여 넣으세요. 엑셀에서 세 칸을 복사해 붙여 넣어도 돼요. 이름이 같은 학생이 있으면 "김민준A"처럼 구분해 주세요. 비밀번호는 4글자 이상.'),
         ta,
         h('button', { class: 'btn btn-primary', onclick: () => addStudents(ta.value).then((ok) => { if (ok) ta.value = ''; }) }, '등록하기'),
@@ -204,7 +204,7 @@ export function mount(root) {
     const online = store.standings.list.filter((s) => isOnline(s.uid));
     el.append(
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, `진행 중인 대결 (${games.length})`),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '⚔️'), `진행 중인 대결 (${games.length})`),
         games.length ? h('ul', { class: 'player-list' }, games.map(([gid, g]) => {
           const names = Object.values(g.players || {});
           return h('li', { class: 'player-row' },
@@ -221,7 +221,7 @@ export function mount(root) {
         })) : h('p', { class: 'empty' }, '진행 중인 대결이 없어요.'),
       ),
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, `접속 중인 학생 (${online.length})`),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🟢'), `접속 중인 학생 (${online.length})`),
         h('p', null, online.map((s) => s.name).join(', ') || '없음'),
       ),
     );
@@ -236,7 +236,7 @@ export function mount(root) {
     const timeout = sel([[0, '상대가 도전할 때까지 기다림'], [30, '30초'], [60, '1분'], [120, '2분']], s.passTimeoutSec);
     const level = sel([[0, '자동 (티어에 따라)'], ...Object.entries(LEVELS).map(([k, L]) => [k, `${L.name} 고정 (${L.n}×${L.n}, ${L.maxH}층, ${L.count[0]}~${L.count[1]}개)`])], s.level);
     el.append(h('section', { class: 'card form' },
-      h('h3', { class: 'card-title' }, '게임 설정'),
+      h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '⚙️'), '게임 설정'),
       h('label', { class: 'field' }, h('span', null, '대결할 수 있는 티어 차이'), gap,
         h('small', { class: 'muted' }, `예: 2단계 → 골드는 에메랄드·플래티넘·골드·실버·브론즈와 대결 가능. 티어 순서: ${TIERS.map((t) => t.name).join(' > ')}`)),
       h('label', { class: 'field' }, h('span', null, '배치고사 판수'), placement,
@@ -265,7 +265,7 @@ export function mount(root) {
   function drawReset(el) {
     el.append(
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, '체험용 도구'),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🧪'), '체험용 도구'),
         h('p', { class: 'muted small' }, '수업 전에 미리 해 보고 싶을 때 쓰세요. 다 해 본 뒤에는 "모든 데이터 지우기"로 정리할 수 있어요.'),
         h('div', { class: 'row-gap' },
           h('button', { class: 'btn', onclick: makeSamples }, '체험용 학생 25명 만들기 (비밀번호 1234)'),
@@ -273,17 +273,17 @@ export function mount(root) {
         ),
       ),
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, '시즌 초기화'),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🔄'), '시즌 초기화'),
         h('p', { class: 'muted small' }, '학생 계정과 비밀번호는 그대로 두고, 점수·전적·티어만 처음으로 돌립니다.'),
         h('button', { class: 'btn btn-danger', onclick: seasonReset }, '점수·전적 초기화'),
       ),
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, '모든 데이터 지우기'),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🗑️'), '모든 데이터 지우기'),
         h('p', { class: 'muted small' }, '학생 계정까지 모두 지웁니다. 선생님 비밀번호는 남아요.'),
         h('button', { class: 'btn btn-danger', onclick: wipeAll }, '모두 지우기'),
       ),
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, '선생님 비밀번호 바꾸기'),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🔑'), '선생님 비밀번호 바꾸기'),
         h('button', { class: 'btn', onclick: changeTeacherPw }, '바꾸기'),
       ),
     );

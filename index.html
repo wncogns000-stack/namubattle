@@ -6,21 +6,27 @@
   <title>쌓기나무 배틀</title>
   <meta name="description" content="초등 6학년 수학 '공간과 입체' — 위·앞·옆에서 본 모양을 보고 먼저 똑같이 쌓으면 승리하는 1:1 대결 게임">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 8 52 18 32 28 12 18Z' fill='%23fbc08a'/%3E%3Cpath d='M12 18 32 28v24L12 42Z' fill='%23f4a462'/%3E%3Cpath d='M52 18 32 28v24l20-10Z' fill='%23d9793f'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="vendor/fonts/pretendard/pretendard.css">
+  <link rel="stylesheet" href="vendor/fonts/jua/jua.css">
+  <meta name="theme-color" content="#eef3ff">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#/">
-      <span class="brand-cube" aria-hidden="true"></span>
-      <span>쌓기나무 배틀</span>
+    <a class="brand" href="#/" aria-label="쌓기나무 배틀 처음으로">
+      <svg class="brand-logo" viewBox="2 2 36 46" aria-hidden="true">
+        <g stroke="#a3561f" stroke-width="0.8" stroke-linejoin="round">
+          <path d="M14.4 16l10.4 6-10.4 6-10.4-6z" fill="#ffd6ac"/><path d="M4 22l10.4 6v12L4 34z" fill="#f8a764"/><path d="M14.4 28l10.4-6v12l-10.4 6z" fill="#e27f3c"/>
+          <path d="M24.8 22l10.4 6-10.4 6-10.4-6z" fill="#ffd6ac"/><path d="M14.4 28l10.4 6v12l-10.4-6z" fill="#f8a764"/><path d="M24.8 34l10.4-6v12l-10.4 6z" fill="#e27f3c"/>
+          <path d="M14.4 4l10.4 6-10.4 6L4 10z" fill="#ffe3c4"/><path d="M4 10l10.4 6v12L4 22z" fill="#f8a764"/><path d="M14.4 16l10.4-6v12l-10.4 6z" fill="#e27f3c"/>
+        </g>
+      </svg>
+      <span class="brand-text">쌓기나무 <em>배틀</em></span>
     </a>
     <nav id="nav"></nav>
   </header>
   <div id="outgoing" class="outgoing" hidden></div>
-  <main id="app"><p class="loading">불러오는 중…</p></main>
+  <main id="app"><div class="loading"><span class="loader"></span>불러오는 중…</div></main>
   <div id="modals"></div>
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <noscript>이 게임은 자바스크립트가 필요해요.</noscript>
