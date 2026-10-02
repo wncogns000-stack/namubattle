@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>쌓기나무 배틀</title>
+  <meta name="description" content="초등 6학년 수학 '공간과 입체' — 위·앞·옆에서 본 모양을 보고 먼저 똑같이 쌓으면 승리하는 1:1 대결 게임">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 8 52 18 32 28 12 18Z' fill='%23fbc08a'/%3E%3Cpath d='M12 18 32 28v24L12 42Z' fill='%23f4a462'/%3E%3Cpath d='M52 18 32 28v24l20-10Z' fill='%23d9793f'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/">
+      <span class="brand-cube" aria-hidden="true"></span>
+      <span>쌓기나무 배틀</span>
+    </a>
+    <nav id="nav"></nav>
+  </header>
+  <div id="outgoing" class="outgoing" hidden></div>
+  <main id="app"><p class="loading">불러오는 중…</p></main>
+  <div id="modals"></div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <noscript>이 게임은 자바스크립트가 필요해요.</noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
