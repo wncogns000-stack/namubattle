@@ -6,11 +6,11 @@
 //   - 같은 브라우저에서 탭 두 개를 열어 두 학생으로 로그인하면 대결을 미리 해 볼 수 있어요.
 // ─────────────────────────────────────────────────────────────
 export const firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  databaseURL: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: "AIzaSyDB-qDkrFGtRWPxVd2JORfFChNETpVR8eI",
+  authDomain: "namu-84aec.firebaseapp.com",
+  databaseURL: "https://namu-84aec-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "namu-84aec",
+  storageBucket: "namu-84aec.firebasestorage.app",
+  messagingSenderId: "310820945360",
+  appId: "1:310820945360:web:18140abfe244116ac18dd5"
 };
