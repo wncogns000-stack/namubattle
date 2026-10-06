@@ -1,7 +1,7 @@
 // 선생님 페이지: 학생 등록, 비밀번호 초기화, 진행 중인 대결 관리, 설정, 초기화
-import { h, toast, confirmBox, promptBox, tierBadge, fmtDuration } from '../ui.js';
+import { h, toast, confirmBox, promptBox, tierBadge, fmtDuration, fmtTime } from '../ui.js';
 import { db } from '../db.js';
-import { store, subscribe, isOnline } from '../store.js';
+import { store, subscribe, isOnline, battleOpen } from '../store.js';
 import { DEFAULT_SETTINGS, LEVELS, START_RATING, TIERS } from '../config.js';
 import { formatWinRate } from '../tiers.js';
 import { teacherExists, setupTeacher, loginTeacher, isTeacher, logoutTeacher, makeSecret, normalizeName, checkSecret } from '../auth.js';
@@ -54,6 +54,7 @@ export function mount(root) {
   function renderMain() {
     off && off();
     const content = h('div');
+    const battleBox = h('div');
     const tabs = [
       ['students', '학생 관리'],
       ['live', '진행 중인 대결'],
@@ -72,16 +73,29 @@ export function mount(root) {
         h('span', { class: 'mode-chip', title: '게임 버전' }, `버전 ${APP_VERSION}`),
         h('button', { class: 'btn btn-small', onclick: () => { logoutTeacher(); start(); } }, '나가기'),
       ),
+      battleBox,
       tabBar,
       content,
     );
+    const drawBattle = () => {
+      // 내용이 그대로면 다시 그리지 않음 (누르려던 버튼이 바뀌지 않도록)
+      const until = store.battle.until;
+      const key = JSON.stringify([battleOpen(), until, Object.keys(store.live || {}).length, until ? Math.ceil((until - db.now()) / 60_000) : 0]);
+      if (battleBox.dataset.key === key) return;
+      battleBox.dataset.key = key;
+      battleBox.innerHTML = '';
+      battleBox.appendChild(battleControl());
+    };
+    drawBattle();
     const draw = () => {
       content.innerHTML = '';
       ({ students: drawStudents, live: drawLive, settings: drawSettings, reset: drawReset })[tab](content);
     };
     draw();
     let lastOnline = '';
-    off = subscribe((_, what) => {
+    const offBattle = subscribe((_, what) => { if (what === 'battle' || what === 'live') drawBattle(); });
+    const battleTimer = setInterval(drawBattle, 15_000); // 남은 시간 표시
+    const offMain = subscribe((_, what) => {
       if (tab === 'settings') return; // 입력 중인 값이 지워지지 않도록
       if (tab === 'reset') return;
       if (what === 'presence') {
@@ -94,6 +108,50 @@ export function mount(root) {
       if (document.activeElement && content.contains(document.activeElement) && document.activeElement.tagName === 'TEXTAREA') return;
       draw();
     });
+    off = () => { offMain(); offBattle(); clearInterval(battleTimer); };
+  }
+
+  // ───────── 대결 열기·닫기 ─────────
+  // 선생님이 열어 둔 동안에만 학생끼리 대결할 수 있어요. (로그인·혼자 연습·랭킹은 언제나 가능)
+  function battleControl() {
+    const open = battleOpen();
+    const until = store.battle.until;
+    const liveCount = Object.keys(store.live || {}).length;
+    const setBattle = async (minutes) => {
+      const now = db.now();
+      try {
+        if (minutes === null) {
+          await db.set('config/battle', { open: false, at: now });
+          toast('대결을 닫았어요.', 'ok');
+        } else {
+          await db.set('config/battle', { open: true, until: minutes ? now + minutes * 60_000 : null, at: now });
+          toast(minutes ? `대결을 열었어요. ${fmtTime(now + minutes * 60_000)}에 저절로 닫혀요.` : '대결을 열었어요. 닫기 전까지 계속 열려 있어요.', 'ok');
+        }
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+    };
+    const choices = (labels) => [
+      h('button', { class: `btn btn-small ${open ? '' : 'btn-primary'}`, onclick: () => setBattle(40) }, labels[0]),
+      h('button', { class: 'btn btn-small', onclick: () => setBattle(80) }, labels[1]),
+      h('button', { class: 'btn btn-small', onclick: () => setBattle(0) }, labels[2]),
+    ];
+    let desc;
+    if (!open) desc = '학생들은 로그인, 혼자 연습, 랭킹·전적 보기만 할 수 있어요.';
+    else if (until) desc = `${fmtTime(until)}에 저절로 닫혀요. (${Math.max(1, Math.ceil((until - db.now()) / 60_000))}분 남음)`;
+    else desc = '선생님이 닫을 때까지 열려 있어요.';
+    if (!open && liveCount) desc += ` 진행 중인 대결 ${liveCount}개는 끝까지 할 수 있어요.`;
+    return h('section', { class: `card battle-control ${open ? 'is-open' : 'is-closed'}` },
+      h('div', { class: 'bc-main' },
+        h('span', { class: 'bc-state' }, open ? '🔓 대결 열림' : '🔒 대결 닫힘'),
+        h('span', { class: 'bc-desc' }, desc),
+      ),
+      h('div', { class: 'bc-buttons' },
+        open
+          ? [h('button', { class: 'btn btn-small btn-danger', onclick: () => setBattle(null) }, '🔒 지금 닫기'), ...choices(['지금부터 40분', '지금부터 80분', '닫을 때까지'])]
+          : choices(['⚔️ 40분 동안 열기', '80분 동안 열기', '닫을 때까지 열기']),
+      ),
+    );
   }
 
   // ───────── 학생 관리 ─────────
@@ -339,7 +397,7 @@ export function mount(root) {
     if (!(await typedConfirm('모든 데이터 지우기', '학생 계정, 점수, 전적이 모두 지워져요.'))) return;
     await db.update('', {
       users: null, secrets: null, history: null, games: null, builds: null, live: null,
-      active: null, invites: null, presence: null, 'config/settings': null, keys: null,
+      active: null, invites: null, presence: null, 'config/settings': null, 'config/battle': null, keys: null,
     });
     toast('모두 지웠어요.', 'ok');
   }

@@ -1,6 +1,6 @@
 // 로그인한 학생의 접속 상태, 대결 신청/수락, 진행 중인 대결 연결
 import { db } from './db.js';
-import { store, standingOf, isOnline } from './store.js';
+import { store, standingOf, isOnline, subscribe, battleOpen } from './store.js';
 import { HEARTBEAT_MS, INVITE_TTL_MS } from './config.js';
 import { canMatch, levelForMatch } from './tiers.js';
 import { generatePuzzle } from './puzzle.js';
@@ -19,6 +19,8 @@ let heartbeatTimer = null;
 let inviteQueue = [];
 let inviteModalOpen = false;
 const handledInvites = new Set();
+
+export const BATTLE_CLOSED_MSG = '지금은 대결 시간이 아니에요. 선생님이 대결을 열면 할 수 있어요.';
 
 export function go(hash) {
   if (location.hash !== hash) location.hash = hash;
@@ -55,6 +57,17 @@ export async function startSession(uid) {
       .map(([from, inv]) => ({ from, ...inv }));
     showNextInvite();
   }));
+
+  // 선생님이 대결을 닫으면 주고받던 신청을 정리 (이미 시작한 대결은 끝까지 진행)
+  offs.push(subscribe((_, what) => {
+    if (what !== 'battle') return;
+    if (battleOpen()) return showNextInvite();
+    if (session.outgoing) {
+      cancelInvite(true);
+      toast('선생님이 대결을 닫아서 신청을 취소했어요.', 'warn');
+    }
+    if (inviteModalOpen) closeAllModals();
+  }));
 }
 
 export function stopSession() {
@@ -81,6 +94,10 @@ let outgoingOff = null;
 let outgoingTimer = null;
 
 export async function sendInvite(toUid) {
+  if (!battleOpen()) {
+    toast(BATTLE_CLOSED_MSG, 'warn');
+    return;
+  }
   const me = standingOf(session.uid);
   const other = standingOf(toUid);
   if (!canMatch(me, other, store.settings)) {
@@ -96,6 +113,9 @@ export async function sendInvite(toUid) {
     if (!session.outgoing) return;
     if (v && v.status === 'declined') {
       toast(`${josa(store.users[toUid]?.name || '상대', '이/가')} 대결을 거절했어요.`, 'warn');
+      cancelInvite(true);
+    } else if (v && v.status === 'closed') {
+      toast(BATTLE_CLOSED_MSG, 'warn');
       cancelInvite(true);
     } else if (v && v.status === 'busy') {
       toast(`${josa(store.users[toUid]?.name || '상대', '은/는')} 지금 다른 대결 중이에요.`, 'warn');
@@ -152,8 +172,14 @@ function renderOutgoingBar() {
 // ───────── 받은 신청 ─────────
 async function showNextInvite() {
   if (inviteModalOpen || session.activeGame) return;
-  const inv = inviteQueue.find((i) => !handledInvites.has(i.from + ':' + i.at));
-  if (!inv) return;
+  const now = db.now();
+  const inv = inviteQueue.find((i) => !handledInvites.has(i.from + ':' + i.at) && now - (i.at || 0) < INVITE_TTL_MS);
+  if (!inv || !store.loaded.battle) return;
+  if (!battleOpen()) {
+    handledInvites.add(inv.from + ':' + inv.at);
+    await db.update(`invites/${session.uid}/${inv.from}`, { status: 'closed' }).catch(() => {});
+    return showNextInvite();
+  }
   if (location.hash.startsWith('#/game/')) return;
   handledInvites.add(inv.from + ':' + inv.at);
   inviteModalOpen = true;
@@ -182,6 +208,11 @@ async function acceptInvite(inv) {
   const cur = await db.get(`invites/${me}/${from}`);
   if (!cur || cur.status !== 'pending') {
     toast('신청이 취소되었어요.', 'warn');
+    return;
+  }
+  if (!battleOpen()) {
+    toast(BATTLE_CLOSED_MSG, 'warn');
+    await db.update(`invites/${me}/${from}`, { status: 'closed' });
     return;
   }
   const sMe = standingOf(me), sOther = standingOf(from);

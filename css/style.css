@@ -585,6 +585,20 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .tab { border: none; background: transparent; border-radius: 14px; padding: 9px 16px; font: inherit; font-weight: 800; cursor: pointer; color: var(--muted); transition: all 0.15s; }
 .tab:hover { color: var(--ink); background: var(--soft); }
 .tab.on { background: var(--ink); color: #fff; box-shadow: 0 6px 14px rgba(30, 35, 64, 0.25); }
+/* 대결 열기·닫기 */
+.battle-control { display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; border: 2px solid transparent; }
+.battle-control.is-open { border-color: #b3edd0; background: linear-gradient(135deg, #f0fdf6, #fff); }
+.battle-control.is-closed { border-color: var(--line); }
+.bc-main { flex: 1 1 320px; display: flex; flex-direction: column; gap: 4px; }
+.bc-state { font-family: var(--font-display); font-size: 24px; }
+.is-open .bc-state { color: var(--green-dark); }
+.is-closed .bc-state { color: var(--ink-2); }
+.bc-desc { color: var(--muted); font-weight: 700; }
+.bc-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.battle-notice { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-radius: 16px; margin-bottom: 12px; font-weight: 600; }
+.battle-notice b { font-size: 17px; }
+.battle-notice.closed { background: var(--soft); border: 2px dashed #d3d8ea; color: var(--ink-2); }
+.battle-notice.open { background: #e9fbf2; border: 2px solid #b3edd0; color: #0b7745; }
 .form .field { max-width: 600px; }
 .teacher-page .card > .btn, .teacher-page .card > .row-gap { margin-top: 6px; }
 

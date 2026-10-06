@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TIERS } from '../js/config.js';
-import { computeStandings, eloDelta, canMatch, levelForMatch, tierIndexForPosition, streakOf, byOpponent, formatWinRate } from '../js/tiers.js';
+import { computeStandings, eloDelta, canMatch, levelForMatch, tierIndexForPosition, streakOf, byOpponent, formatWinRate, isBattleOpen } from '../js/tiers.js';
 
 test('티어 인원 합계는 25명', () => {
   assert.equal(TIERS.reduce((s, t) => s + t.quota, 0), 25);
@@ -85,6 +85,16 @@ test('연승과 상대별 전적', () => {
   assert.equal(o[0].losses, 1);
   assert.equal(formatWinRate(2, 1), '67%');
   assert.equal(formatWinRate(0, 0), '-');
+});
+
+test('선생님이 연 대결 시간', () => {
+  assert.equal(isBattleOpen(undefined, 1000), false); // 처음에는 닫혀 있음
+  assert.equal(isBattleOpen({}, 1000), false);
+  assert.equal(isBattleOpen({ open: false, until: 5000 }, 1000), false);
+  assert.equal(isBattleOpen({ open: true }, 1000), true); // 닫을 때까지
+  assert.equal(isBattleOpen({ open: true, until: null }, 1000), true);
+  assert.equal(isBattleOpen({ open: true, until: 5000 }, 4999), true);
+  assert.equal(isBattleOpen({ open: true, until: 5000 }, 5000), false); // 시간이 되면 저절로 닫힘
 });
 
 test('version.json과 앱 버전이 같다 (올릴 때 둘 다 바꿨는지 확인)', async () => {

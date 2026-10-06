@@ -1,20 +1,22 @@
 // 여러 화면이 함께 쓰는 실시간 데이터 (학생 목록, 설정, 접속 상태)
 import { db } from './db.js';
 import { DEFAULT_SETTINGS, ONLINE_WINDOW_MS } from './config.js';
-import { computeStandings } from './tiers.js';
+import { computeStandings, isBattleOpen } from './tiers.js';
 
 export const store = {
   users: {},
   settings: { ...DEFAULT_SETTINGS },
   presence: {},
   live: {},
+  battle: {}, // 선생님이 연 대결 시간 { open, until }
   standings: computeStandings({}),
   me: null,
-  loaded: { users: false, settings: false },
+  loaded: { users: false, settings: false, battle: false },
 };
 
 const subs = new Set();
 let started = false;
+let battleTimer = null;
 
 export function subscribe(fn) {
   subs.add(fn);
@@ -54,6 +56,19 @@ export function startStore() {
     store.live = v || {};
     emit('live');
   });
+  db.on('config/battle', (v) => {
+    store.battle = v || {};
+    store.loaded.battle = true;
+    // 정해 둔 시각이 되면 화면들이 '닫힘'으로 바뀌도록 한 번 더 알림
+    clearTimeout(battleTimer);
+    const left = (store.battle.until || 0) - db.now();
+    if (store.battle.open && left > 0) battleTimer = setTimeout(() => emit('battle'), Math.min(left + 500, 2 ** 31 - 1));
+    emit('battle');
+  });
+}
+
+export function battleOpen() {
+  return isBattleOpen(store.battle, db.now());
 }
 
 export function isOnline(uid) {

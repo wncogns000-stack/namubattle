@@ -66,6 +66,11 @@ export function computeStandings(users, settings = DEFAULT_SETTINGS) {
   return { list, byUid, rankedCount: ranked.length };
 }
 
+// 선생님이 대결을 열어 두었는지. battle = { open, until } (until이 있으면 그 시각에 저절로 닫힘)
+export function isBattleOpen(battle, now) {
+  return !!(battle && battle.open && (!battle.until || now < battle.until));
+}
+
 // 두 학생이 대결할 수 있는지 (배치고사 중이면 누구와도 가능)
 export function canMatch(a, b, settings = DEFAULT_SETTINGS) {
   if (!a || !b || a.uid === b.uid) return false;

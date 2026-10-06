@@ -235,6 +235,11 @@ export function fmtDuration(ms) {
   return m ? `${m}분 ${String(r).padStart(2, '0')}초` : `${r}초`;
 }
 
+// 시각 표시: '오후 2:30'
+export function fmtTime(ms) {
+  return new Date(ms).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
+}
+
 export function fmtClock(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

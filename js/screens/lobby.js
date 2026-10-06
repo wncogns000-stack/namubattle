@@ -1,6 +1,6 @@
-import { h, tierBadge, tierEmblem, toast, avatar } from '../ui.js';
+import { h, tierBadge, tierEmblem, toast, avatar, fmtTime } from '../ui.js';
 import { db } from '../db.js';
-import { store, subscribe, isOnline, presenceState, myStanding } from '../store.js';
+import { store, subscribe, isOnline, presenceState, myStanding, battleOpen } from '../store.js';
 import { TIERS } from '../config.js';
 import { canMatch, formatWinRate, streakOf } from '../tiers.js';
 import { session, sendInvite, setPresenceState } from '../session.js';
@@ -81,8 +81,17 @@ export function mount(root) {
   function renderList() {
     const me = myStanding();
     const others = store.standings.list.filter((s) => s.uid !== session.uid && isOnline(s.uid));
-    if (!changed(listBox, [me, others, others.map((s) => presenceState(s.uid)), store.settings, session.outgoing?.to, !!session.activeGame])) return;
+    const open = battleOpen();
+    if (!changed(listBox, [me, others, others.map((s) => presenceState(s.uid)), store.settings, session.outgoing?.to, !!session.activeGame, open, store.battle.until])) return;
     listBox.innerHTML = '';
+    if (!open) {
+      listBox.appendChild(h('div', { class: 'battle-notice closed' },
+        h('b', null, '🔒 지금은 대결 시간이 아니에요'),
+        h('span', null, '선생님이 대결을 열면 친구에게 대결을 신청할 수 있어요. 그동안 혼자 연습으로 실력을 키워 봐요!'),
+      ));
+    } else if (store.battle.until) {
+      listBox.appendChild(h('div', { class: 'battle-notice open' }, h('b', null, `⏰ ${fmtTime(store.battle.until)}까지 대결할 수 있어요`)));
+    }
     if (!others.length) {
       listBox.appendChild(h('p', { class: 'empty' }, '아직 접속한 친구가 없어요. 친구들이 들어오면 여기에 보여요.'));
       return;
@@ -98,6 +107,7 @@ export function mount(root) {
       let btn;
       if (!ok) btn = h('span', { class: 'tag tag-muted' }, '티어 차이');
       else if (busy) btn = h('span', { class: 'tag tag-busy' }, '대결 중');
+      else if (!open) btn = h('button', { class: 'btn btn-small', disabled: true }, '🔒 대결 신청');
       else btn = h('button', {
         class: `btn ${pending ? '' : 'btn-primary'} btn-small`,
         disabled: !!pending || !!session.activeGame,
