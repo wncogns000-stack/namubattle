@@ -6,7 +6,7 @@ import { heightsFromString, heightsToString, solutionOf, viewsOf } from '../puzz
 import { puzzleCard, heightGrid } from '../views2d.js';
 import { Builder3D } from '../builder3d.js';
 import { session, setPresenceState, leaveFinishedGame } from '../session.js';
-import { challenge, surrender, lockInfo, opponentOf, cancelGame } from '../match.js';
+import { challenge, lockInfo, opponentOf, cancelGame } from '../match.js';
 
 const OPP_GONE_MS = 60_000;
 
@@ -133,7 +133,6 @@ export function mount(root, [gid]) {
               els.challengeBtn,
               h('div', { class: 'row-gap' },
                 h('button', { class: 'btn btn-small', onclick: clearAll }, '모두 지우기'),
-                h('button', { class: 'btn btn-small btn-ghost', onclick: doSurrender }, '기권하기'),
               ),
             ),
           ),
@@ -252,11 +251,6 @@ export function mount(root, [gid]) {
     }
   }
 
-  async function doSurrender() {
-    if (!(await confirmBox('기권하기', '정말 기권할까요? 패배로 기록돼요.', '기권', 'danger'))) return;
-    await surrender(gid, me);
-  }
-
   function handleNewAttempts() {
     const list = Object.entries(g?.attempts || {}).sort(([a], [b]) => (a < b ? -1 : 1));
     for (const [k, a] of list) {
@@ -290,6 +284,7 @@ export function mount(root, [gid]) {
     if (firstTime && won && db.now() - (g.endedAt || 0) < 15000) confetti();
 
     const d = g.result?.delta;
+    // reason 'surrender'는 기권 기능을 없애기 전에 끝난 기록을 보여 줄 때만 쓰여요
     const reasonText = g.reason === 'surrender'
       ? (won ? `${josa(oppName, '이/가')} 기권했어요.` : '기권했어요.')
       : (won ? '정답을 먼저 맞혔어요!' : `${josa(oppName, '이/가')} 먼저 정답을 맞혔어요.`);

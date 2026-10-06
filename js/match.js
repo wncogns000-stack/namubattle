@@ -1,4 +1,4 @@
-// 대결 진행 규칙: 정답 도전, 기권, 결과 기록
+// 대결 진행 규칙: 정답 도전, 결과 기록
 //
 // 정답 도전 기회 규칙
 //   - 처음에는 두 사람 모두 언제든 '정답 도전'을 외칠 수 있어요.
@@ -57,25 +57,6 @@ export async function challenge(gid, me, heights, puzzle, settings) {
   if (!res.committed) return { status: outcome === 'win' || outcome === 'wrong' ? 'over' : outcome, check };
   if (outcome === 'win') await finalize(gid, res.value);
   return { status: outcome, check };
-}
-
-export async function surrender(gid, me) {
-  let done = false;
-  const res = await db.transaction(`games/${gid}`, (g) => {
-    if (!g) return g;
-    if (g.status !== 'playing') return undefined;
-    const now = db.now();
-    g.status = 'finished';
-    g.winner = opponentOf(g, me);
-    g.loser = me;
-    g.reason = 'surrender';
-    g.endedAt = now;
-    g.lock = null;
-    done = true;
-    return g;
-  });
-  if (res.committed && done) await finalize(gid, res.value);
-  return res.committed && done;
 }
 
 // 승패를 점수·전적에 반영 (게임을 끝낸 쪽이 한 번만 실행)
