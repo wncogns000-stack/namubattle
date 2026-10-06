@@ -4,6 +4,7 @@ import { startStore, store, subscribe, whenLoaded, myStanding } from './store.js
 import { currentUid } from './auth.js';
 import { session, startSession, stopSession, go } from './session.js';
 import { h, tierBadge, confirmBox } from './ui.js';
+import { startUpdates } from './update.js';
 import * as login from './screens/login.js';
 import * as lobby from './screens/lobby.js';
 import * as game from './screens/game.js';
@@ -80,6 +81,7 @@ function renderNav(active) {
 }
 
 async function main() {
+  startUpdates(() => parseHash().name);
   try {
     await initDB();
   } catch (e) {

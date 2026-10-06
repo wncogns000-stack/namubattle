@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, LEVELS, START_RATING, TIERS } from '../config.js';
 import { formatWinRate } from '../tiers.js';
 import { teacherExists, setupTeacher, loginTeacher, isTeacher, logoutTeacher, makeSecret, normalizeName, checkSecret } from '../auth.js';
 import { cancelGame } from '../match.js';
+import { APP_VERSION } from '../update.js';
 
 const SAMPLE_NAMES = ['민준', '서연', '도윤', '하은', '시우', '지우', '주원', '서윤', '하준', '지민', '예준', '수아', '유준',
   '하린', '은우', '지아', '건우', '다은', '우진', '채원', '선우', '윤서', '현우', '소율', '지호'];
@@ -68,6 +69,7 @@ export function mount(root) {
       h('div', { class: 'card teacher-head' },
         h('h2', { class: 'card-title', style: { margin: '0' } }, h('span', { class: 'title-icon' }, '👩‍🏫'), '선생님 페이지'),
         h('span', { class: 'mode-chip' }, db.mode === 'local' ? '💡 체험 모드 (이 브라우저에만 저장)' : '🟢 Firebase 연결됨'),
+        h('span', { class: 'mode-chip', title: '게임 버전' }, `버전 ${APP_VERSION}`),
         h('button', { class: 'btn btn-small', onclick: () => { logoutTeacher(); start(); } }, '나가기'),
       ),
       tabBar,
@@ -78,10 +80,17 @@ export function mount(root) {
       ({ students: drawStudents, live: drawLive, settings: drawSettings, reset: drawReset })[tab](content);
     };
     draw();
+    let lastOnline = '';
     off = subscribe((_, what) => {
       if (tab === 'settings') return; // 입력 중인 값이 지워지지 않도록
       if (tab === 'reset') return;
-      if (what === 'presence' && tab !== 'live' && tab !== 'students') return;
+      if (what === 'presence') {
+        if (tab !== 'live' && tab !== 'students') return;
+        // 접속 신호는 1초에도 몇 번씩 오므로, 접속한 학생이 바뀌었을 때만(대결 탭은 지난 시간 표시 때문에 10초마다) 다시 그림
+        const key = store.standings.list.filter((s) => isOnline(s.uid)).map((s) => s.uid).join() + (tab === 'live' ? `|${Math.floor(db.now() / 10000)}` : '');
+        if (key === lastOnline) return;
+        lastOnline = key;
+      }
       if (document.activeElement && content.contains(document.activeElement) && document.activeElement.tagName === 'TEXTAREA') return;
       draw();
     });

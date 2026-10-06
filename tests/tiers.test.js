@@ -86,3 +86,11 @@ test('연승과 상대별 전적', () => {
   assert.equal(formatWinRate(2, 1), '67%');
   assert.equal(formatWinRate(0, 0), '-');
 });
+
+test('version.json과 앱 버전이 같다 (올릴 때 둘 다 바꿨는지 확인)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile(new URL('../js/update.js', import.meta.url), 'utf8');
+  const appVersion = src.match(/APP_VERSION = '([^']+)'/)[1];
+  const file = JSON.parse(await readFile(new URL('../version.json', import.meta.url), 'utf8'));
+  assert.equal(file.version, appVersion);
+});

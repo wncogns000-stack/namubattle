@@ -40,11 +40,21 @@ export function mount(root) {
     return hi === lo ? `${TIERS[hi].name} 친구와 대결할 수 있어요.` : `${TIERS[lo].name} ~ ${TIERS[hi].name} 친구와 대결할 수 있어요. (배치고사 중인 친구와도 가능)`;
   }
 
+  // 접속 신호는 25명이 15초마다 보내므로 1초에 몇 번씩 들어옵니다.
+  // 보이는 내용이 그대로면 다시 그리지 않아야 누르려던 버튼이 사라지지 않아요.
+  function changed(box, data) {
+    const key = JSON.stringify(data);
+    if (box.dataset.key === key) return false;
+    box.dataset.key = key;
+    return true;
+  }
+
   function renderProfile() {
     const me = myStanding();
+    const st = streakOf(history);
+    if (!changed(profileBox, [me, st, store.standings.rankedCount, store.settings.tierGap])) return;
     profileBox.innerHTML = '';
     if (!me) return;
-    const st = streakOf(history);
     profileBox.appendChild(h('section', { class: `card player-card tier-bg-${me.tier.id}` },
       h('div', { class: 'pc-emblem' }, tierEmblem(me.tier, 104)),
       h('div', { class: 'pc-main' },
@@ -70,8 +80,9 @@ export function mount(root) {
 
   function renderList() {
     const me = myStanding();
-    listBox.innerHTML = '';
     const others = store.standings.list.filter((s) => s.uid !== session.uid && isOnline(s.uid));
+    if (!changed(listBox, [me, others, others.map((s) => presenceState(s.uid)), store.settings, session.outgoing?.to, !!session.activeGame])) return;
+    listBox.innerHTML = '';
     if (!others.length) {
       listBox.appendChild(h('p', { class: 'empty' }, '아직 접속한 친구가 없어요. 친구들이 들어오면 여기에 보여요.'));
       return;
@@ -111,6 +122,7 @@ export function mount(root) {
   }
 
   function renderLive() {
+    if (!changed(liveBox, store.live || {})) return;
     liveBox.innerHTML = '';
     const games = Object.entries(store.live || {});
     if (!games.length) return;

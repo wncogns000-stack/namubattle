@@ -588,6 +588,13 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .form .field { max-width: 600px; }
 .teacher-page .card > .btn, .teacher-page .card > .row-gap { margin-top: 6px; }
 
+.update-banner {
+  position: fixed; left: 50%; top: 76px; transform: translateX(-50%); z-index: 90;
+  display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 18px; border-radius: 999px;
+  background: rgba(30, 35, 64, 0.94); color: #fff; font-weight: 700; box-shadow: 0 12px 30px rgba(30, 35, 64, 0.3);
+}
+.update-banner .btn { box-shadow: none; }
+
 /* ───── 대화상자·알림 ───── */
 .modal-wrap {
   position: fixed; inset: 0; z-index: 100; padding: 16px;
