@@ -1,4 +1,4 @@
-import { h, svgEl, toast } from '../ui.js';
+import { h, toast } from '../ui.js';
 import { db } from '../db.js';
 import { store } from '../store.js';
 import { loginStudent } from '../auth.js';
@@ -24,10 +24,9 @@ export function mount(root) {
       btn.disabled = false;
     }
   } },
-    h('div', { class: 'login-hero' },
-      heroArt(),
-      h('h1', null, '쌓기나무 ', h('em', null, '배틀')),
-      h('p', { class: 'muted' }, '위·앞·옆에서 본 모양을 보고 먼저 똑같이 만들면 승리!'),
+    h('div', { class: 'login-title' },
+      h('h2', null, '⚔️ 대결장 입장'),
+      h('p', { class: 'muted' }, '이름과 비밀번호를 입력하세요'),
     ),
     h('label', { class: 'field' }, h('span', null, '이름'), nameInput),
     h('label', { class: 'field' }, h('span', null, '비밀번호'), pwInput),
@@ -38,33 +37,21 @@ export function mount(root) {
     ),
   );
 
-  root.appendChild(h('div', { class: 'center-page' },
+  root.appendChild(h('div', { class: 'login-page' },
     db.mode === 'local' ? h('div', { class: 'demo-banner' },
       h('b', null, '체험 모드'), ' — Firebase가 아직 연결되지 않아 이 브라우저 안에서만 저장돼요. ',
       '선생님 페이지에서 체험용 학생을 만들고, 탭 두 개로 두 학생이 되어 대결해 보세요.',
     ) : null,
-    form,
+    h('div', { class: 'login-layout' },
+      h('div', { class: 'hero-banner' },
+        h('img', {
+          src: 'img/hero.webp', width: '1672', height: '941', decoding: 'async', fetchpriority: 'high',
+          alt: '쌓기나무 배틀 — 6-2 양반후반 최강 쌓기왕을 가려라! 양념치킨과 후라이드치킨의 쌓기나무 대결',
+        }),
+      ),
+      form,
+    ),
   ));
-  setTimeout(() => nameInput.focus(), 50);
-}
-
-// 계단 모양으로 쌓은 쌓기나무 그림
-function heroArt() {
-  const A = 12.12, B = 7, H = 14;
-  const cubes = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [0, 0, 2]]
-    .sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]) || p[2] - q[2]);
-  const svg = svgEl('svg', { viewBox: '-30 -34 60 80', class: 'hero-art', 'aria-hidden': 'true' });
-  const g = svgEl('g', { stroke: '#a3561f', 'stroke-width': '0.9', 'stroke-linejoin': 'round' });
-  for (const [x, y, z] of cubes) {
-    const X = (x - y) * A, Y = (x + y) * B - z * H;
-    g.appendChild(svgEl('path', { d: `M${X} ${Y}l${A} ${B}-${A} ${B}-${A}-${B}z`, fill: '#ffd9b0' }));
-    g.appendChild(svgEl('path', { d: `M${X - A} ${Y + B}l${A} ${B}v${H}l-${A}-${B}z`, fill: '#f8a764' }));
-    g.appendChild(svgEl('path', { d: `M${X} ${Y + 2 * B}l${A}-${B}v${H}l-${A} ${B}z`, fill: '#e27f3c' }));
-  }
-  svg.appendChild(g);
-  // 반짝이
-  for (const [x, y, r] of [[-24, -20, 3], [22, -26, 2.4], [26, 2, 2]]) {
-    svg.appendChild(svgEl('path', { d: `M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}z`, fill: '#ffc53d' }));
-  }
-  return svg;
+  // 태블릿에서는 자동으로 키보드가 올라와 그림을 가리지 않도록, 마우스가 있는 기기에서만 자동 포커스
+  if (window.matchMedia?.('(pointer: fine)').matches) setTimeout(() => nameInput.focus(), 50);
 }
