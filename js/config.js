@@ -11,9 +11,9 @@ export const TIERS = [
   { id: 'emerald',     name: '에메랄드',    quota: 3, color: '#10b981', color2: '#065f46' },
   { id: 'platinum',    name: '플래티넘',    quota: 4, color: '#2dd4bf', color2: '#115e59' },
   { id: 'gold',        name: '골드',       quota: 4, color: '#eab308', color2: '#854d0e' },
-  { id: 'silver',      name: '실버',       quota: 4, color: '#cbd5e1', color2: '#475569' },
+  { id: 'silver',      name: '실버',       quota: 3, color: '#cbd5e1', color2: '#475569' },
   { id: 'bronze',      name: '브론즈',     quota: 3, color: '#d97706', color2: '#78350f' },
-  { id: 'iron',        name: '아이언',     quota: 1, color: '#78716c', color2: '#292524' },
+  { id: 'iron',        name: '아이언',     quota: 2, color: '#78716c', color2: '#292524' },
 ];
 
 // 배치고사 중인 학생에게 보여 줄 표시
