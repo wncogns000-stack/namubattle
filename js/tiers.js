@@ -66,6 +66,18 @@ export function computeStandings(users, settings = DEFAULT_SETTINGS) {
   return { list, byUid, rankedCount: ranked.length };
 }
 
+// 승수 랭킹: 티어·점수와 상관없이 이긴 횟수만으로 줄 세우기 (승수가 같으면 같은 등수)
+// list: computeStandings의 list → [{ ...standing, winRank }] (winRank는 0부터)
+export function winsRanking(list) {
+  const sorted = [...list].sort((a, b) => b.wins - a.wins || (a.no ?? 999) - (b.no ?? 999) || String(a.name).localeCompare(String(b.name), 'ko'));
+  let prev = null;
+  return sorted.map((s, i) => {
+    const winRank = prev && prev.wins === s.wins ? prev.winRank : i;
+    prev = { wins: s.wins, winRank };
+    return { ...s, winRank };
+  });
+}
+
 // 선생님이 대결을 열어 두었는지. battle = { open, until } (until이 있으면 그 시각에 저절로 닫힘)
 export function isBattleOpen(battle, now) {
   return !!(battle && battle.open && (!battle.until || now < battle.until));

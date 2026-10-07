@@ -4,6 +4,7 @@ import { store, subscribe, isOnline } from '../store.js';
 import { TIERS, UNRANKED } from '../config.js';
 import { formatWinRate, winRate } from '../tiers.js';
 import { session } from '../session.js';
+import { rankSwitch } from './wins.js';
 
 export function mount(root) {
   const box = h('div', { class: 'page ranking-page' });
@@ -40,6 +41,7 @@ export function mount(root) {
     box.innerHTML = '';
     const { list, rankedCount } = store.standings;
     const live = Object.values(store.live || {});
+    box.append(rankSwitch('ranking'));
     box.append(h('section', { class: 'card rank-hero' },
       h('h2', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🏆'), '쌓기나무 배틀 랭킹'),
       h('p', { class: 'muted', style: { margin: '0' } }, `티어는 점수 순위로 정해져요. 처음 ${store.settings.placementGames}판은 배치고사예요. (25명 기준 인원)`),

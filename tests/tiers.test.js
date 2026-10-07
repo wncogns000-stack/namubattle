@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TIERS } from '../js/config.js';
-import { computeStandings, eloDelta, canMatch, levelForMatch, tierIndexForPosition, streakOf, byOpponent, formatWinRate, isBattleOpen } from '../js/tiers.js';
+import { computeStandings, eloDelta, canMatch, levelForMatch, tierIndexForPosition, streakOf, byOpponent, formatWinRate, isBattleOpen, winsRanking } from '../js/tiers.js';
 
 test('티어 인원 합계는 25명', () => {
   assert.equal(TIERS.reduce((s, t) => s + t.quota, 0), 25);
@@ -95,6 +95,19 @@ test('선생님이 연 대결 시간', () => {
   assert.equal(isBattleOpen({ open: true, until: null }, 1000), true);
   assert.equal(isBattleOpen({ open: true, until: 5000 }, 4999), true);
   assert.equal(isBattleOpen({ open: true, until: 5000 }, 5000), false); // 시간이 되면 저절로 닫힘
+});
+
+test('승수 랭킹: 티어와 상관없이 승수 순, 같으면 같은 등수', () => {
+  const users = {
+    a: { name: '가', no: 1, rating: 1300, wins: 3, losses: 0 },  // 높은 티어, 3승
+    b: { name: '나', no: 2, rating: 800, wins: 9, losses: 12 },  // 낮은 티어, 9승
+    c: { name: '다', no: 3, rating: 900, wins: 3, losses: 7 },   // 3승 (가와 같은 등수)
+    d: { name: '라', no: 4, wins: 0, losses: 1 },                // 배치고사, 0승
+  };
+  const before = JSON.stringify(users);
+  const list = winsRanking(computeStandings(users, { placementGames: 3 }).list);
+  assert.deepEqual(list.map((s) => [s.name, s.wins, s.winRank]), [['나', 9, 0], ['가', 3, 1], ['다', 3, 1], ['라', 0, 3]]);
+  assert.equal(JSON.stringify(users), before); // 원래 데이터는 그대로
 });
 
 test('version.json과 앱 버전이 같다 (올릴 때 둘 다 바꿨는지 확인)', async () => {

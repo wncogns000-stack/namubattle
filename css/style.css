@@ -540,6 +540,32 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .p2 .podium-base { height: 82px; background: linear-gradient(180deg, #dfe6f1, #a9b5c9); }
 .p3 .podium-base { height: 64px; background: linear-gradient(180deg, #f4b27a, #d27a3c); }
 .tier-group { border-left: 6px solid var(--tc); padding-top: 16px; }
+
+/* 티어 랭킹 ↔ 승수 랭킹 */
+.rank-switch { display: flex; gap: 4px; background: rgba(255, 255, 255, 0.7); padding: 5px; border-radius: 18px; width: fit-content; box-shadow: var(--shadow-1); }
+.rank-switch-tab { border-radius: 14px; padding: 9px 18px; font-weight: 800; text-decoration: none; color: var(--muted); transition: all 0.15s; }
+.rank-switch-tab:hover { color: var(--ink); background: var(--soft); }
+.rank-switch-tab.on { background: var(--ink); color: #fff; box-shadow: 0 6px 14px rgba(30, 35, 64, 0.25); }
+
+/* 승수 랭킹 */
+.wins-row {
+  display: grid; grid-template-columns: 34px 40px minmax(0, 1fr) auto 84px; gap: 12px; align-items: center;
+  padding: 8px 12px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1px var(--line);
+}
+.wins-row .avatar { width: 38px; height: 38px; border-radius: 13px; font-size: 17px; }
+.wins-row.me { box-shadow: inset 0 0 0 2px #ffc53d, 0 6px 16px rgba(255, 197, 61, 0.25); background: #fffdf3; }
+.wins-no {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px;
+  font-weight: 900; color: var(--ink-2); background: var(--soft); font-variant-numeric: tabular-nums;
+}
+.wins-row.top1 .wins-no { background: linear-gradient(180deg, #ffd45c, #f5a623); color: #fff; }
+.wins-row.top2 .wins-no { background: linear-gradient(180deg, #dfe6f1, #a9b5c9); color: #fff; }
+.wins-row.top3 .wins-no { background: linear-gradient(180deg, #f4b27a, #d27a3c); color: #fff; }
+.wins-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.wins-who .tier-badge { font-size: 12px; }
+.wins-count { font-family: var(--font-display); font-size: 26px; color: var(--ink); text-align: right; }
+.wins-count small { font-family: var(--font); font-size: 13px; font-weight: 800; color: var(--muted); margin-left: 2px; }
+.wins-games { color: var(--muted); font-size: 13px; font-weight: 700; text-align: right; }
 .tier-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .tier-group-head h3 { margin: 0; color: var(--tc2); }
 .tier-group-head .count { font-size: 13px; font-weight: 800; padding: 2px 10px; border-radius: 999px; background: var(--tsoft); color: var(--tc2); }
@@ -751,6 +777,8 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 @media (max-width: 720px) {
   .rank-row { grid-template-columns: 30px 36px minmax(0, 1fr) auto; gap: 10px; }
   .rank-wl, .rank-wr { display: none; }
+  .wins-row { grid-template-columns: 30px 36px minmax(0, 1fr) auto; gap: 10px; }
+  .wins-games { display: none; }
   .player-list { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {

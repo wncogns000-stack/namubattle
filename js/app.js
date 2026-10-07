@@ -10,6 +10,7 @@ import * as lobby from './screens/lobby.js';
 import * as game from './screens/game.js';
 import * as practice from './screens/practice.js';
 import * as ranking from './screens/ranking.js';
+import * as wins from './screens/wins.js';
 import * as history from './screens/history.js';
 import * as teacher from './screens/teacher.js';
 
@@ -19,6 +20,7 @@ const ROUTES = {
   game: { screen: game, auth: true },
   practice: { screen: practice, auth: true },
   ranking: { screen: ranking, auth: false },
+  wins: { screen: wins, auth: false },
   history: { screen: history, auth: false },
   teacher: { screen: teacher, auth: false },
 };
@@ -54,6 +56,7 @@ function render() {
 }
 
 function renderNav(active) {
+  if (active === 'wins') active = 'ranking'; // 승수 랭킹도 '랭킹' 메뉴에 속함
   const nav = document.getElementById('nav');
   nav.innerHTML = '';
   const link = (hash, label, key) => h('a', { href: hash, class: active === key ? 'on' : '' }, label);
