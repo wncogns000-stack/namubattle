@@ -157,7 +157,7 @@ export function mount(root) {
   // ───────── 학생 관리 ─────────
   function drawStudents(el) {
     const list = [...store.standings.list].sort((a, b) => (a.no ?? 999) - (b.no ?? 999) || String(a.name).localeCompare(String(b.name), 'ko'));
-    const ta = h('textarea', { rows: 6, placeholder: '한 줄에 한 명씩: 번호 이름 비밀번호\n예)\n1 김민준 1234\n2 이서연 5678' });
+    const ta = h('textarea', { rows: 6, placeholder: '한 줄에 한 명씩: 번호 이름 비밀번호\n예)\n1 주채훈 1234\n2 이서연 5678' });
     el.append(
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🧑‍🎓'), `학생 목록 (${list.length}명)`),
@@ -182,7 +182,7 @@ export function mount(root) {
       ),
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '➕'), '학생 등록'),
-        h('p', { class: 'muted small' }, '번호·이름·비밀번호를 띄어쓰기, 쉼표 또는 탭으로 구분해 붙여 넣으세요. 엑셀에서 세 칸을 복사해 붙여 넣어도 돼요. 이름이 같은 학생이 있으면 "김민준A"처럼 구분해 주세요. 비밀번호는 4글자 이상.'),
+        h('p', { class: 'muted small' }, '번호·이름·비밀번호를 띄어쓰기, 쉼표 또는 탭으로 구분해 붙여 넣으세요. 엑셀에서 세 칸을 복사해 붙여 넣어도 돼요. 이름이 같은 학생이 있으면 "주채훈A"처럼 구분해 주세요. 비밀번호는 4글자 이상.'),
         ta,
         h('button', { class: 'btn btn-primary', onclick: () => addStudents(ta.value).then((ok) => { if (ok) ta.value = ''; }) }, '등록하기'),
       ),
