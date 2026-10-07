@@ -6,7 +6,7 @@
 // ※ 게임을 고쳐서 올릴 때는 APP_VERSION과 version.json의 version을 똑같이 바꿔 주세요.
 import { h } from './ui.js';
 
-export const APP_VERSION = '2026-10-06.2';
+export const APP_VERSION = '2026-10-07.1';
 
 const RELOAD_KEY = 'namubattle-reloaded-for';
 const SAFE_ROUTES = ['login', 'lobby', 'ranking', 'history'];

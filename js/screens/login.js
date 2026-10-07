@@ -5,7 +5,7 @@ import { loginStudent } from '../auth.js';
 import { startSession, go } from '../session.js';
 
 export function mount(root) {
-  const nameInput = h('input', { type: 'text', id: 'login-name', autocomplete: 'off', placeholder: '예: 김민준', required: true });
+  const nameInput = h('input', { type: 'text', id: 'login-name', autocomplete: 'off', placeholder: '예: 주채훈', required: true });
   const pwInput = h('input', { type: 'password', id: 'login-pw', autocomplete: 'off', placeholder: '비밀번호', required: true, inputmode: 'text' });
 
   const btn = h('button', { class: 'btn btn-primary btn-big', type: 'submit' }, '입장하기');
