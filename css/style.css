@@ -621,6 +621,31 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .is-closed .bc-state { color: var(--ink-2); }
 .bc-desc { color: var(--muted); font-weight: 700; }
 .bc-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+/* 대결 찾기 (자동 매칭) */
+.match-card { display: flex; flex-direction: column; gap: 12px; }
+.match-card.is-searching { border: 2px solid #c9d6ff; background: linear-gradient(135deg, #eef3ff, #fff); }
+.match-card .battle-notice { margin-bottom: 0; }
+.match-row { display: flex; align-items: center; gap: 14px 18px; flex-wrap: wrap; }
+.match-btn { min-width: 220px; font-size: 22px; padding: 16px 28px; }
+.match-text { flex: 1 1 260px; display: flex; flex-direction: column; gap: 3px; font-weight: 600; color: var(--ink-2); }
+.match-text b { font-size: 18px; color: var(--ink); }
+.match-time { font-variant-numeric: tabular-nums; color: var(--primary-dark); }
+.match-until { font-size: 14px; font-weight: 800; color: var(--green-dark); }
+.match-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.match-radar {
+  width: 56px; height: 56px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
+  background: var(--primary); box-shadow: 0 0 0 0 rgba(76, 111, 255, 0.45); animation: radar 1.6s ease-out infinite;
+}
+.match-radar .spinner { width: 24px; height: 24px; }
+@keyframes radar { 70% { box-shadow: 0 0 0 16px rgba(76, 111, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(76, 111, 255, 0); } }
+.status-chip.state-search { background: #e9fbf2; color: #0b7745; }
+.ready-body { display: flex; flex-direction: column; gap: 12px; }
+.ready-status { margin: 0 !important; font-weight: 700; color: var(--ink-2); text-align: center; }
+.ready-status.wait { color: var(--primary-dark); }
+.ready-buttons { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.ready-buttons .btn-big { min-width: 180px; }
+.ready-modal .modal-buttons:empty { display: none; }
+
 .battle-notice { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-radius: 16px; margin-bottom: 12px; font-weight: 600; }
 .battle-notice b { font-size: 17px; }
 .battle-notice.closed { background: var(--soft); border: 2px dashed #d3d8ea; color: var(--ink-2); }

@@ -1,21 +1,24 @@
-import { h, tierBadge, tierEmblem, toast, avatar, fmtTime } from '../ui.js';
+import { h, tierBadge, tierEmblem, toast, avatar, fmtTime, fmtClock } from '../ui.js';
 import { db } from '../db.js';
 import { store, subscribe, isOnline, presenceState, myStanding, battleOpen } from '../store.js';
 import { TIERS } from '../config.js';
 import { canMatch, formatWinRate, streakOf } from '../tiers.js';
 import { session, sendInvite, setPresenceState } from '../session.js';
+import { joinQueue, leaveQueue, queueInfo } from '../matchmaking.js';
 
 const STATE_LABEL = { lobby: '대기 중', game: '대결 중', practice: '연습 중', other: '둘러보는 중' };
 
 export function mount(root) {
   setPresenceState('lobby');
   const profileBox = h('div');
+  const matchBox = h('div');
   const listBox = h('div');
   const liveBox = h('div');
   let history = [];
 
   root.appendChild(h('div', { class: 'page lobby' },
     profileBox,
+    matchBox,
     h('section', { class: 'card' },
       h('div', { class: 'card-head' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '👋'), '지금 접속한 친구'),
@@ -78,20 +81,78 @@ export function mount(root) {
     return h('div', { class: 'stat' }, h('span', { class: 'stat-label' }, label), h('span', { class: 'stat-value' }, value, sub ? h('small', null, sub) : null));
   }
 
+  // ───────── 대결 찾기 (자동 매칭) ─────────
+  // 버튼이 있는 틀은 상태가 바뀔 때만 새로 그리고, 숫자·시간은 그 자리에서 글자만 바꿈 (누르는 순간 버튼이 바뀌지 않도록)
+  let live = null; // { time, count }
+  function renderMatch() {
+    const open = battleOpen();
+    const q = queueInfo();
+    if (changed(matchBox, [open, store.battle.until, q.queued, q.matched, !!session.activeGame])) buildMatch(open, q);
+    if (!live) return;
+    if (live.time) live.time.textContent = fmtClock(q.waitedMs);
+    if (live.count) {
+      live.count.textContent = q.queued
+        ? `지금 ${q.searching}명이 찾는 중 · 나와 맞는 친구 ${q.eligible}명${q.eligible ? '' : ' — 맞는 친구가 들어오면 바로 짝지어 줄게요.'}`
+        : (q.searching ? `지금 ${q.searching}명이 찾는 중이에요.` : '찾는 동안 혼자 연습해도 돼요. 상대를 찾으면 알려 줄게요!');
+    }
+  }
+
+  function buildMatch(open, q) {
+    matchBox.innerHTML = '';
+    live = null;
+    if (!open) {
+      matchBox.appendChild(h('section', { class: 'card match-card is-closed' },
+        h('div', { class: 'battle-notice closed' },
+          h('b', null, '🔒 지금은 대결 시간이 아니에요'),
+          h('span', null, '선생님이 대결을 열면 대결 찾기를 할 수 있어요. 그동안 혼자 연습으로 실력을 키워 봐요!'),
+        ),
+        h('div', { class: 'match-row' },
+          h('button', { class: 'btn btn-big match-btn', disabled: true }, '🔒 대결 찾기'),
+          h('a', { class: 'btn', href: '#/practice' }, '🧩 혼자 연습하기'),
+        ),
+      ));
+      return;
+    }
+    const until = store.battle.until ? h('span', { class: 'match-until' }, `⏰ ${fmtTime(store.battle.until)}까지 대결할 수 있어요`) : null;
+    live = { count: h('span', null) };
+    if (!q.queued) {
+      matchBox.appendChild(h('section', { class: 'card match-card' },
+        h('div', { class: 'match-row' },
+          h('button', { class: 'btn btn-primary btn-big match-btn', disabled: !!session.activeGame, onclick: () => joinQueue().catch((e) => toast(e.message, 'error')) }, '⚔️ 대결 찾기'),
+          h('div', { class: 'match-text' },
+            h('b', null, '비슷한 티어 친구와 자동으로 짝지어 줘요'),
+            live.count,
+            until,
+          ),
+        ),
+      ));
+      return;
+    }
+    live.time = q.matched ? null : h('b', { class: 'match-time' });
+    matchBox.appendChild(h('section', { class: 'card match-card is-searching' },
+      h('div', { class: 'match-row' },
+        h('div', { class: 'match-radar' }, h('span', { class: 'spinner' })),
+        h('div', { class: 'match-text' },
+          h('b', null, q.matched ? '상대를 찾았어요! 수락 창을 확인하세요.' : '대결 상대를 찾는 중… ', live.time),
+          live.count,
+          until,
+        ),
+        h('div', { class: 'match-actions' },
+          h('a', { class: 'btn', href: '#/practice' }, '🧩 기다리며 연습'),
+          h('button', { class: 'btn', onclick: () => leaveQueue({ msg: '대결 찾기를 멈췄어요.' }) }, '그만 찾기'),
+        ),
+      ),
+    ));
+  }
+
   function renderList() {
     const me = myStanding();
     const others = store.standings.list.filter((s) => s.uid !== session.uid && isOnline(s.uid));
     const open = battleOpen();
-    if (!changed(listBox, [me, others, others.map((s) => presenceState(s.uid)), store.settings, session.outgoing?.to, !!session.activeGame, open, store.battle.until])) return;
+    const direct = !!store.settings.directInvite; // 선생님이 켰을 때만 직접 신청
+    const searching = (uid) => !!store.queue?.[uid];
+    if (!changed(listBox, [me, others, others.map((s) => [presenceState(s.uid), searching(s.uid)]), store.settings, session.outgoing?.to, !!session.activeGame, open])) return;
     listBox.innerHTML = '';
-    if (!open) {
-      listBox.appendChild(h('div', { class: 'battle-notice closed' },
-        h('b', null, '🔒 지금은 대결 시간이 아니에요'),
-        h('span', null, '선생님이 대결을 열면 친구에게 대결을 신청할 수 있어요. 그동안 혼자 연습으로 실력을 키워 봐요!'),
-      ));
-    } else if (store.battle.until) {
-      listBox.appendChild(h('div', { class: 'battle-notice open' }, h('b', null, `⏰ ${fmtTime(store.battle.until)}까지 대결할 수 있어요`)));
-    }
     if (!others.length) {
       listBox.appendChild(h('p', { class: 'empty' }, '아직 접속한 친구가 없어요. 친구들이 들어오면 여기에 보여요.'));
       return;
@@ -104,8 +165,9 @@ export function mount(root) {
       const ok = canMatch(me, s, store.settings);
       const busy = state === 'game';
       const pending = session.outgoing?.to === s.uid;
-      let btn;
-      if (!ok) btn = h('span', { class: 'tag tag-muted' }, '티어 차이');
+      let btn = null;
+      if (!direct) btn = ok ? null : h('span', { class: 'tag tag-muted' }, '티어 차이');
+      else if (!ok) btn = h('span', { class: 'tag tag-muted' }, '티어 차이');
       else if (busy) btn = h('span', { class: 'tag tag-busy' }, '대결 중');
       else if (!open) btn = h('button', { class: 'btn btn-small', disabled: true }, '🔒 대결 신청');
       else btn = h('button', {
@@ -118,7 +180,8 @@ export function mount(root) {
         h('div', { class: 'pr-main' },
           h('div', { class: 'pr-top' },
             h('span', { class: 'player-name' }, s.name),
-            h('span', { class: `status-chip state-${state}` }, STATE_LABEL[state] || ''),
+            searching(s.uid) && !busy ? h('span', { class: 'status-chip state-search' }, '🔎 대결 찾는 중')
+              : h('span', { class: `status-chip state-${state}` }, STATE_LABEL[state] || ''),
           ),
           h('span', { class: 'player-meta' },
             tierBadge(s, { size: 20 }),
@@ -145,11 +208,12 @@ export function mount(root) {
     ));
   }
 
-  const renderAll = () => { renderProfile(); renderList(); renderLive(); };
+  const renderAll = () => { renderProfile(); renderMatch(); renderList(); renderLive(); };
   renderAll();
   const off = subscribe(renderAll);
   // 접속 표시가 시간이 지나면 꺼지도록 주기적으로 다시 그림
   const timer = setInterval(renderList, 10_000);
+  const clock = setInterval(renderMatch, 1000); // 기다린 시간
   window.addEventListener('nb-outgoing', renderList);
-  return () => { off(); offHist(); clearInterval(timer); window.removeEventListener('nb-outgoing', renderList); };
+  return () => { off(); offHist(); clearInterval(timer); clearInterval(clock); window.removeEventListener('nb-outgoing', renderList); };
 }

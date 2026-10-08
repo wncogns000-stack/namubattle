@@ -68,8 +68,9 @@ export function toast(msg, type = 'info', ms = 2600) {
 }
 
 // buttons: [{label, value, kind}] → 누른 버튼의 value로 resolve
+// onOpen(close): 버튼 말고 코드에서 창을 닫아야 할 때 close를 받아 둠
 let modalStack = [];
-export function modal({ title, body, buttons = [{ label: '확인', value: true, kind: 'primary' }], dismissible = true, className = '' }) {
+export function modal({ title, body, buttons = [{ label: '확인', value: true, kind: 'primary' }], dismissible = true, className = '', onOpen }) {
   return new Promise((resolve) => {
     const root = document.getElementById('modals');
     const close = (v) => {
@@ -88,6 +89,7 @@ export function modal({ title, body, buttons = [{ label: '확인', value: true, 
     const entry = { close };
     modalStack.push(entry);
     root.appendChild(wrap);
+    if (onOpen) onOpen(close);
     const first = box.querySelector('input, .btn-primary');
     if (first) setTimeout(() => first.focus(), 30);
   });

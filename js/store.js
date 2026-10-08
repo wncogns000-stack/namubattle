@@ -9,6 +9,7 @@ export const store = {
   presence: {},
   live: {},
   battle: {}, // 선생님이 연 대결 시간 { open, until }
+  queue: {}, // 자동 매칭 대기열 { uid: { at, name, last, match, ready } }
   standings: computeStandings({}),
   me: null,
   loaded: { users: false, settings: false, battle: false },
@@ -55,6 +56,10 @@ export function startStore() {
   db.on('live', (v) => {
     store.live = v || {};
     emit('live');
+  });
+  db.on('queue', (v) => {
+    store.queue = v || {};
+    emit('queue');
   });
   db.on('config/battle', (v) => {
     store.battle = v || {};

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TIERS } from '../js/config.js';
-import { computeStandings, eloDelta, canMatch, levelForMatch, tierIndexForPosition, streakOf, byOpponent, formatWinRate, isBattleOpen, winsRanking } from '../js/tiers.js';
+import { computeStandings, eloDelta, canMatch, levelForMatch, tierIndexForPosition, streakOf, byOpponent, formatWinRate, isBattleOpen, winsRanking, pickOpponent } from '../js/tiers.js';
 
 test('티어 인원 합계는 25명', () => {
   assert.equal(TIERS.reduce((s, t) => s + t.quota, 0), 25);
@@ -108,6 +108,41 @@ test('승수 랭킹: 티어와 상관없이 승수 순, 같으면 같은 등수'
   const list = winsRanking(computeStandings(users, { placementGames: 3 }).list);
   assert.deepEqual(list.map((s) => [s.name, s.wins, s.winRank]), [['나', 9, 0], ['가', 3, 1], ['다', 3, 1], ['라', 0, 3]]);
   assert.equal(JSON.stringify(users), before); // 원래 데이터는 그대로
+});
+
+test('자동 매칭: 상대 고르기 규칙', () => {
+  const users = {};
+  for (let i = 0; i < 25; i++) users['u' + String(i).padStart(2, '0')] = { name: '학생' + i, rating: 1500 - i * 10, wins: 3, losses: 0 };
+  users.new = { name: '새친구', wins: 0, losses: 0 }; // 배치고사
+  const { byUid } = computeStandings(users, { placementGames: 3 });
+  const S = { tierGap: 2 };
+  // u00 챌린저, u24 아이언 → 티어 차이 커서 안 됨
+  assert.equal(pickOpponent('u00', { u00: { at: 1 }, u24: { at: 2 } }, byUid, S), null);
+  // 배치고사는 누구와도
+  assert.equal(pickOpponent('u00', { u00: { at: 1 }, new: { at: 2 } }, byUid, S), 'new');
+  // 나보다 먼저 들어온 친구에게는 내가 걸지 않음 (그 친구가 나를 고름)
+  assert.equal(pickOpponent('u01', { u00: { at: 1 }, u01: { at: 2 } }, byUid, S), null);
+  assert.equal(pickOpponent('u00', { u00: { at: 1 }, u01: { at: 2 } }, byUid, S), 'u01');
+  // 같은 시각이면 uid 순서로 한쪽만
+  assert.equal(pickOpponent('u00', { u00: { at: 5 }, u01: { at: 5 } }, byUid, S), 'u01');
+  assert.equal(pickOpponent('u01', { u00: { at: 5 }, u01: { at: 5 } }, byUid, S), null);
+  // 이미 짝이 정해졌거나, 내가 짝이 있으면 안 고름
+  assert.equal(pickOpponent('u00', { u00: { at: 1 }, u01: { at: 2, match: { id: 'x' } } }, byUid, S), null);
+  assert.equal(pickOpponent('u00', { u00: { at: 1, match: { id: 'x' } }, u01: { at: 2 } }, byUid, S), null);
+  // 접속하지 않은 친구 제외
+  assert.equal(pickOpponent('u00', { u00: { at: 1 }, u01: { at: 2 } }, byUid, S, Math.random, (u) => u !== 'u01'), null);
+  // 직전 상대는 다른 후보가 있으면 피함, 없으면 다시 만남
+  const q = { u10: { at: 1, last: 'u11' }, u11: { at: 2 }, u12: { at: 3 } };
+  for (let i = 0; i < 20; i++) assert.equal(pickOpponent('u10', q, byUid, S), 'u12');
+  assert.equal(pickOpponent('u10', { u10: { at: 1, last: 'u11' }, u11: { at: 2 } }, byUid, S), 'u11');
+  // 후보 여럿이면 무작위 (여러 상대가 골고루 나옴)
+  const many = { u10: { at: 1 }, u08: { at: 2 }, u09: { at: 3 }, u11: { at: 4 }, u12: { at: 5 } };
+  const seen = new Set();
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+  for (let i = 0; i < 200; i++) seen.add(pickOpponent('u10', many, byUid, S, rnd));
+  assert.ok(seen.size >= 3, `여러 상대가 나와야 함: ${[...seen]}`);
+  for (const u of seen) assert.ok(['u08', 'u09', 'u11', 'u12'].includes(u));
 });
 
 test('version.json과 앱 버전이 같다 (올릴 때 둘 다 바꿨는지 확인)', async () => {

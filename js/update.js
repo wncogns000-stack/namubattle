@@ -6,7 +6,7 @@
 // ※ 게임을 고쳐서 올릴 때는 APP_VERSION과 version.json의 version을 똑같이 바꿔 주세요.
 import { h } from './ui.js';
 
-export const APP_VERSION = '2026-10-07.3';
+export const APP_VERSION = '2026-10-08.1';
 
 const RELOAD_KEY = 'namubattle-reloaded-for';
 const SAFE_ROUTES = ['login', 'lobby', 'ranking', 'wins', 'history'];
@@ -54,7 +54,8 @@ export function startUpdates(getRouteName) {
     // 같은 버전 때문에 계속 새로 고치지 않도록 한 번만
     let already = null;
     try { already = sessionStorage.getItem(RELOAD_KEY); } catch { /* 무시 */ }
-    const safe = SAFE_ROUTES.includes(getRouteName()) && !document.querySelector('.modal');
+    // 대결 찾는 중이면 새로 고치면 대기열에서 빠지므로 미룸
+    const safe = SAFE_ROUTES.includes(getRouteName()) && !document.querySelector('.modal') && document.body.dataset.queued !== '1';
     if (safe && already !== v) {
       try { sessionStorage.setItem(RELOAD_KEY, v); } catch { /* 무시 */ }
       await swReady();

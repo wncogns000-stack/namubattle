@@ -98,6 +98,7 @@ export function mount(root) {
     const offMain = subscribe((_, what) => {
       if (tab === 'settings') return; // 입력 중인 값이 지워지지 않도록
       if (tab === 'reset') return;
+      if (what === 'queue' && tab !== 'live') return;
       if (what === 'presence') {
         if (tab !== 'live' && tab !== 'students') return;
         // 접속 신호는 1초에도 몇 번씩 오므로, 접속한 학생이 바뀌었을 때만(대결 탭은 지난 시간 표시 때문에 10초마다) 다시 그림
@@ -121,7 +122,7 @@ export function mount(root) {
       const now = db.now();
       try {
         if (minutes === null) {
-          await db.set('config/battle', { open: false, at: now });
+          await db.update('', { 'config/battle': { open: false, at: now }, queue: null }); // 대결 찾는 중이던 학생도 정리
           toast('대결을 닫았어요.', 'ok');
         } else {
           await db.set('config/battle', { open: true, until: minutes ? now + minutes * 60_000 : null, at: now });
@@ -269,6 +270,7 @@ export function mount(root) {
   function drawLive(el) {
     const games = Object.entries(store.live || {}).sort((a, b) => (a[1].createdAt || 0) - (b[1].createdAt || 0));
     const online = store.standings.list.filter((s) => isOnline(s.uid));
+    const searching = online.filter((s) => store.queue?.[s.uid]);
     el.append(
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '⚔️'), `진행 중인 대결 (${games.length})`),
@@ -288,6 +290,11 @@ export function mount(root) {
         })) : h('p', { class: 'empty' }, '진행 중인 대결이 없어요.'),
       ),
       h('section', { class: 'card' },
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🔎'), `대결 찾는 중 (${searching.length})`),
+        h('p', null, searching.map((s) => s.name).join(', ') || '없음'),
+        h('p', { class: 'muted small' }, '티어 조건에 맞는 친구끼리 자동으로 짝지어져요. 맞는 친구가 없으면 나타날 때까지 기다려요.'),
+      ),
+      h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🟢'), `접속 중인 학생 (${online.length})`),
         h('p', null, online.map((s) => s.name).join(', ') || '없음'),
       ),
@@ -301,9 +308,12 @@ export function mount(root) {
     const gap = sel([1, 2, 3, 4, 9].map((v) => [v, v === 9 ? '제한 없음' : `${v}단계 차이까지`]), s.tierGap);
     const placement = sel([0, 1, 2, 3, 5].map((v) => [v, v === 0 ? '없음' : `${v}판`]), s.placementGames);
     const timeout = sel([[0, '상대가 도전할 때까지 기다림'], [30, '30초'], [60, '1분'], [120, '2분']], s.passTimeoutSec);
+    const direct = sel([[0, '끔 — 대결 찾기(자동 매칭)만'], [1, '켬 — 자동 매칭 + 친구에게 직접 신청']], s.directInvite ? 1 : 0);
     const level = sel([[0, '자동 (티어에 따라)'], ...Object.entries(LEVELS).map(([k, L]) => [k, `${L.name} 고정 (${L.n}×${L.n}, ${L.maxH}층, ${L.count[0]}~${L.count[1]}개)`])], s.level);
     el.append(h('section', { class: 'card form' },
       h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '⚙️'), '게임 설정'),
+      h('label', { class: 'field' }, h('span', null, '친구에게 직접 대결 신청'), direct,
+        h('small', { class: 'muted' }, '기본은 꺼짐: 학생들이 "대결 찾기"를 누르면 비슷한 티어 친구와 무작위로 짝지어져요. 켜면 로비에서 원하는 친구에게 직접 신청도 할 수 있어요(친한 친구끼리 번갈아 져 주며 승수를 쌓을 수 있으니 보상을 걸 때는 꺼 두기를 권해요).')),
       h('label', { class: 'field' }, h('span', null, '대결할 수 있는 티어 차이'), gap,
         h('small', { class: 'muted' }, `예: 2단계 → 골드는 에메랄드·플래티넘·골드·실버·브론즈와 대결 가능. 티어 순서: ${TIERS.map((t) => t.name).join(' > ')}`)),
       h('label', { class: 'field' }, h('span', null, '배치고사 판수'), placement,
@@ -316,6 +326,7 @@ export function mount(root) {
           await db.set('config/settings', {
             tierGap: Number(gap.value), placementGames: Number(placement.value),
             passTimeoutSec: Number(timeout.value), level: Number(level.value),
+            directInvite: direct.value === '1',
           });
           toast('설정을 저장했어요.', 'ok');
         } }, '저장'),
@@ -383,7 +394,7 @@ export function mount(root) {
 
   async function seasonReset() {
     if (!(await typedConfirm('점수·전적 초기화', '모든 학생의 점수가 1000점, 0승 0패로 돌아가고 전적이 지워져요.'))) return;
-    const up = { history: null, games: null, builds: null, live: null, active: null, invites: null };
+    const up = { history: null, games: null, builds: null, live: null, active: null, invites: null, queue: null };
     for (const uid of Object.keys(store.users)) {
       up[`users/${uid}/rating`] = START_RATING;
       up[`users/${uid}/wins`] = 0;
@@ -397,7 +408,7 @@ export function mount(root) {
     if (!(await typedConfirm('모든 데이터 지우기', '학생 계정, 점수, 전적이 모두 지워져요.'))) return;
     await db.update('', {
       users: null, secrets: null, history: null, games: null, builds: null, live: null,
-      active: null, invites: null, presence: null, 'config/settings': null, 'config/battle': null, keys: null,
+      active: null, invites: null, presence: null, queue: null, 'config/settings': null, 'config/battle': null, keys: null,
     });
     toast('모두 지웠어요.', 'ok');
   }

@@ -1,4 +1,5 @@
-// 로그인한 학생의 접속 상태, 대결 신청/수락, 진행 중인 대결 연결
+// 로그인한 학생의 접속 상태, 대결 신청/수락(선생님이 켰을 때), 진행 중인 대결 연결
+// 자동 매칭(대결 찾기)은 matchmaking.js
 import { db } from './db.js';
 import { store, standingOf, isOnline, subscribe, battleOpen } from './store.js';
 import { HEARTBEAT_MS, INVITE_TTL_MS } from './config.js';
@@ -6,6 +7,7 @@ import { canMatch, levelForMatch } from './tiers.js';
 import { generatePuzzle } from './puzzle.js';
 import { h, toast, modal, josa, tierBadge, closeAllModals } from './ui.js';
 import { logoutStudent } from './auth.js';
+import { startMatchmaking, stopMatchmaking, leaveQueue } from './matchmaking.js';
 
 export const session = {
   uid: null,
@@ -21,6 +23,12 @@ let inviteModalOpen = false;
 const handledInvites = new Set();
 
 export const BATTLE_CLOSED_MSG = '지금은 대결 시간이 아니에요. 선생님이 대결을 열면 할 수 있어요.';
+export const INVITE_OFF_MSG = '지금은 친구에게 직접 신청할 수 없어요. 대결 찾기를 눌러 주세요.';
+
+// 친구에게 직접 신청할 수 있는지 (선생님이 켜 두고, 대결 시간일 때)
+export function directInviteOn() {
+  return !!store.settings.directInvite && battleOpen();
+}
 
 export function go(hash) {
   if (location.hash !== hash) location.hash = hash;
@@ -43,6 +51,7 @@ export async function startSession(uid) {
     session.activeGame = gid || null;
     if (gid) {
       cancelInvite(true);
+      leaveQueue({ silent: true });
       closeAllModals();
       inviteQueue = [];
       if (!location.hash.startsWith(`#/game/${gid}`)) go(`#/game/${gid}`);
@@ -58,19 +67,22 @@ export async function startSession(uid) {
     showNextInvite();
   }));
 
-  // 선생님이 대결을 닫으면 주고받던 신청을 정리 (이미 시작한 대결은 끝까지 진행)
+  // 선생님이 대결을 닫거나 직접 신청을 끄면 주고받던 신청을 정리 (이미 시작한 대결은 끝까지 진행)
   offs.push(subscribe((_, what) => {
-    if (what !== 'battle') return;
-    if (battleOpen()) return showNextInvite();
+    if (what !== 'battle' && what !== 'settings') return;
+    if (directInviteOn()) return showNextInvite();
     if (session.outgoing) {
       cancelInvite(true);
-      toast('선생님이 대결을 닫아서 신청을 취소했어요.', 'warn');
+      toast(battleOpen() ? '선생님이 직접 신청을 꺼서 신청을 취소했어요.' : '선생님이 대결을 닫아서 신청을 취소했어요.', 'warn');
     }
     if (inviteModalOpen) closeAllModals();
   }));
+
+  startMatchmaking();
 }
 
 export function stopSession() {
+  stopMatchmaking();
   offs.splice(0).forEach((f) => f());
   clearInterval(heartbeatTimer);
   if (session.uid) {
@@ -98,6 +110,10 @@ export async function sendInvite(toUid) {
     toast(BATTLE_CLOSED_MSG, 'warn');
     return;
   }
+  if (!store.settings.directInvite) {
+    toast(INVITE_OFF_MSG, 'warn');
+    return;
+  }
   const me = standingOf(session.uid);
   const other = standingOf(toUid);
   if (!canMatch(me, other, store.settings)) {
@@ -116,6 +132,9 @@ export async function sendInvite(toUid) {
       cancelInvite(true);
     } else if (v && v.status === 'closed') {
       toast(BATTLE_CLOSED_MSG, 'warn');
+      cancelInvite(true);
+    } else if (v && v.status === 'off') {
+      toast(INVITE_OFF_MSG, 'warn');
       cancelInvite(true);
     } else if (v && v.status === 'busy') {
       toast(`${josa(store.users[toUid]?.name || '상대', '은/는')} 지금 다른 대결 중이에요.`, 'warn');
@@ -174,12 +193,13 @@ async function showNextInvite() {
   if (inviteModalOpen || session.activeGame) return;
   const now = db.now();
   const inv = inviteQueue.find((i) => !handledInvites.has(i.from + ':' + i.at) && now - (i.at || 0) < INVITE_TTL_MS);
-  if (!inv || !store.loaded.battle) return;
-  if (!battleOpen()) {
+  if (!inv || !store.loaded.battle || !store.loaded.settings) return;
+  if (!directInviteOn()) {
     handledInvites.add(inv.from + ':' + inv.at);
-    await db.update(`invites/${session.uid}/${inv.from}`, { status: 'closed' }).catch(() => {});
+    await db.update(`invites/${session.uid}/${inv.from}`, { status: battleOpen() ? 'off' : 'closed' }).catch(() => {});
     return showNextInvite();
   }
+  if (store.queue?.[session.uid]?.match) return; // 자동 매칭 수락 창이 떠 있는 동안은 잠시 미룸
   if (location.hash.startsWith('#/game/')) return;
   handledInvites.add(inv.from + ':' + inv.at);
   inviteModalOpen = true;
@@ -210,9 +230,9 @@ async function acceptInvite(inv) {
     toast('신청이 취소되었어요.', 'warn');
     return;
   }
-  if (!battleOpen()) {
-    toast(BATTLE_CLOSED_MSG, 'warn');
-    await db.update(`invites/${me}/${from}`, { status: 'closed' });
+  if (!directInviteOn()) {
+    toast(battleOpen() ? INVITE_OFF_MSG : BATTLE_CLOSED_MSG, 'warn');
+    await db.update(`invites/${me}/${from}`, { status: battleOpen() ? 'off' : 'closed' });
     return;
   }
   const sMe = standingOf(me), sOther = standingOf(from);
@@ -226,31 +246,40 @@ async function acceptInvite(inv) {
     await db.remove(`invites/${me}/${from}`);
     return;
   }
-  const level = levelForMatch(sMe, sOther, store.settings);
+  const res = await startGame(from, me, { [`invites/${me}/${from}`]: null }, inv.fromName);
+  if (res.ok) return;
+  if (res.busy === from) {
+    await db.update(`invites/${me}/${from}`, { status: 'busy' });
+    toast('상대가 이미 다른 대결을 시작했어요.', 'warn');
+  } else {
+    toast('이미 진행 중인 대결이 있어요.', 'warn');
+  }
+}
+
+// 두 학생의 대결 시작 (직접 신청 수락·자동 매칭 공통). a = 신청한 쪽 / 먼저 기다린 쪽
+// extra: 대결을 만들면서 함께 지울 것(신청서, 대기열 등)
+// 반환: { ok: true, gid } 또는 { ok: false, busy: 이미 다른 대결 중인 학생 }
+export async function startGame(a, b, extra = {}, aName) {
+  const level = levelForMatch(standingOf(a), standingOf(b), store.settings);
   const { puzzle } = generatePuzzle(level);
   const gid = db.newKey();
   const now = db.now();
-  const players = { [from]: inv.fromName || store.users[from]?.name || '', [me]: myName() };
-  await db.set(`games/${gid}`, { players, a: from, b: me, puzzle, status: 'playing', createdAt: now });
+  const players = { [a]: aName || store.users[a]?.name || '', [b]: store.users[b]?.name || '' };
+  await db.set(`games/${gid}`, { players, a, b, puzzle, status: 'playing', createdAt: now });
   // 상대를 먼저 붙잡고(다른 대결에 들어가지 않았는지 확인), 다음에 나
-  const claimOther = await db.transaction(`active/${from}`, (v) => (v ? undefined : gid));
-  if (!claimOther.committed || claimOther.value !== gid) {
+  const claimA = await db.transaction(`active/${a}`, (v) => (v ? undefined : gid));
+  if (!claimA.committed || claimA.value !== gid) {
     await db.remove(`games/${gid}`);
-    await db.update(`invites/${me}/${from}`, { status: 'busy' });
-    toast('상대가 이미 다른 대결을 시작했어요.', 'warn');
-    return;
+    return { ok: false, busy: a };
   }
-  const claimMe = await db.transaction(`active/${me}`, (v) => (v ? undefined : gid));
-  if (!claimMe.committed || claimMe.value !== gid) {
-    await db.remove(`active/${from}`);
+  const claimB = await db.transaction(`active/${b}`, (v) => (v ? undefined : gid));
+  if (!claimB.committed || claimB.value !== gid) {
+    await db.remove(`active/${a}`);
     await db.remove(`games/${gid}`);
-    toast('이미 진행 중인 대결이 있어요.', 'warn');
-    return;
+    return { ok: false, busy: b };
   }
-  await db.update('', {
-    [`live/${gid}`]: { players, level: puzzle.level, createdAt: now },
-    [`invites/${me}/${from}`]: null,
-  });
+  await db.update('', { [`live/${gid}`]: { players, level: puzzle.level, createdAt: now }, ...extra });
+  return { ok: true, gid };
 }
 
 export async function leaveFinishedGame(gid, to = '#/lobby') {
