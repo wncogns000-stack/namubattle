@@ -5,6 +5,7 @@ import { LEVELS } from '../config.js';
 import { heightsFromString, heightsToString, solutionOf, viewsOf } from '../puzzle.js';
 import { puzzleCard, heightGrid } from '../views2d.js';
 import { Builder3D } from '../builder3d.js';
+import { play, playBuild } from '../sound.js';
 import { session, setPresenceState, leaveFinishedGame } from '../session.js';
 import { challenge, lockInfo, opponentOf, cancelGame } from '../match.js';
 
@@ -64,6 +65,7 @@ export function mount(root, [gid]) {
     const saved = await db.get(`builds/${gid}/${me}`);
     if (phase !== 'playing') return;
     heights = heightsFromString(saved, p.n);
+    if (db.now() - (g.createdAt || 0) < 15000) play('start'); // 막 시작한 대결일 때만 (새로고침 때는 조용히)
 
     els.timer = h('span', { class: 'timer' }, '0:00');
     els.status = h('div', { class: 'chance' });
@@ -140,7 +142,7 @@ export function mount(root, [gid]) {
       ),
     );
     builder = new Builder3D(canvasBox, { n: p.n, rows: p.rows, heights, onChange: onBuilderChange });
-    canvasBox.addEventListener('builder-limit', () => toast(`${p.rows}층까지만 쌓을 수 있어요.`, 'warn'));
+    canvasBox.addEventListener('builder-limit', () => { play('limit'); toast(`${p.rows}층까지만 쌓을 수 있어요.`, 'warn'); });
     updateCount();
     updatePlay();
   }
@@ -157,11 +159,13 @@ export function mount(root, [gid]) {
     const i = y * p.n + x;
     const v = heights[i] + d;
     if (v < 0 || v > p.rows) return;
-    heights[i] = v;
-    onBuilderChange(heights);
+    const next = [...heights];
+    next[i] = v;
+    onBuilderChange(next);
   }
 
   function onBuilderChange(hs) {
+    playBuild(heights, hs);
     heights = [...hs];
     grid?.refresh();
     updateCount();
@@ -231,13 +235,14 @@ export function mount(root, [gid]) {
     busy = true;
     updatePlay();
     flash('🙋 정답 도전!', 'info', 900);
+    play('challenge');
     try {
       clearTimeout(saveTimer);
       await db.set(`builds/${gid}/${me}`, heightsToString(heights));
       const res = await challenge(gid, me, heights, g.puzzle, store.settings);
       if (res.status === 'wrong') {
         const opp = opponentOf(g, me);
-        setTimeout(() => flash('❌ 아쉬워요! 정답이 아니에요', 'bad', 1600), 700);
+        setTimeout(() => { flash('❌ 아쉬워요! 정답이 아니에요', 'bad', 1600); play('wrong'); }, 700);
         toast(`도전 기회가 ${g.players[opp] || '상대'}에게 넘어갔어요.`, 'warn', 3500);
       } else if (res.status === 'notYourTurn') {
         toast('지금은 상대의 도전 차례예요.', 'warn');
@@ -259,8 +264,9 @@ export function mount(root, [gid]) {
       if (firstAttemptsLoad || a.uid === me) continue;
       const name = g.players[a.uid] || '상대';
       flash(`🙋 ${name} 정답 도전!`, 'info', 1000);
+      play('oppChallenge');
       if (!a.ok) {
-        setTimeout(() => flash(`❌ ${josa(name, '이/가')} 틀렸어요! 이제 내 기회!`, 'good', 1800), 1100);
+        setTimeout(() => { flash(`❌ ${josa(name, '이/가')} 틀렸어요! 이제 내 기회!`, 'good', 1800); play('chance'); }, 1100);
       }
     }
     firstAttemptsLoad = false;
@@ -268,6 +274,7 @@ export function mount(root, [gid]) {
 
   // ───────── 결과 화면 ─────────
   let finishedShown = false;
+  let tierUpPlayed = false;
   async function showFinished() {
     const finalizedNow = !!g.finalized;
     if (finishedShown && !finalizedNow) return;
@@ -281,7 +288,10 @@ export function mount(root, [gid]) {
     const won = g.winner === me;
     const opp = opponentOf(g, me);
     const oppName = g.players[opp] || '상대';
-    if (firstTime && won && db.now() - (g.endedAt || 0) < 15000) confetti();
+    if (firstTime && db.now() - (g.endedAt || 0) < 15000) { // 방금 끝난 대결일 때만
+      if (won) confetti();
+      play(won ? 'win' : 'lose');
+    }
 
     const d = g.result?.delta;
     // reason 'surrender'는 기권 기능을 없애기 전에 끝난 기록을 보여 줄 때만 쓰여요
@@ -292,6 +302,7 @@ export function mount(root, [gid]) {
     let tierMsg = null;
     if (g.finalized && before.standing && now && before.standing.tier.id !== now.tier.id) {
       const up = now.tierIndex >= 0 && (before.standing.tierIndex < 0 || now.tierIndex < before.standing.tierIndex);
+      if (up && !tierUpPlayed) { tierUpPlayed = true; setTimeout(() => play('tierUp'), 1300); }
       tierMsg = h('div', { class: `tier-change ${up ? 'up' : 'down'}` },
         up ? '🎉 승급! ' : '티어 변동: ',
         tierBadge(before.standing, { size: 26 }), ' → ', tierBadge(now, { size: 32 }),

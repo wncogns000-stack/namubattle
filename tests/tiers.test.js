@@ -145,6 +145,19 @@ test('자동 매칭: 상대 고르기 규칙', () => {
   for (const u of seen) assert.ok(['u08', 'u09', 'u11', 'u12'].includes(u));
 });
 
+test('효과음: 쌓기 판 변화에 맞는 소리', async () => {
+  const { buildSound, SOUNDS } = await import('../js/sound.js');
+  assert.deepEqual(buildSound([0, 0, 0, 0], [0, 1, 0, 0]), { name: 'place', level: 1 });
+  assert.deepEqual(buildSound([0, 2, 0, 0], [0, 3, 0, 0]), { name: 'place', level: 3 }); // 높이 쌓을수록 다른 소리
+  assert.deepEqual(buildSound([0, 2, 0, 0], [0, 1, 0, 0]), { name: 'remove' });
+  assert.deepEqual(buildSound([1, 2, 0, 3], [0, 0, 0, 0]), { name: 'clear' });
+  assert.equal(buildSound([0, 0, 0, 0], [1, 2, 0, 3]), null); // 정답 보기처럼 한꺼번에 바뀜 → 소리 없음
+  assert.equal(buildSound([1, 0], [1, 0]), null);
+  for (const n of ['place', 'remove', 'clear', 'limit', 'challenge', 'oppChallenge', 'wrong', 'chance', 'found', 'accept', 'start', 'win', 'lose', 'correct', 'tierUp']) {
+    assert.equal(typeof SOUNDS[n], 'function', n);
+  }
+});
+
 test('version.json과 앱 버전이 같다 (올릴 때 둘 다 바꿨는지 확인)', async () => {
   const { readFile } = await import('node:fs/promises');
   const src = await readFile(new URL('../js/update.js', import.meta.url), 'utf8');

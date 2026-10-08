@@ -309,6 +309,7 @@ export function mount(root) {
     const placement = sel([0, 1, 2, 3, 5].map((v) => [v, v === 0 ? '없음' : `${v}판`]), s.placementGames);
     const timeout = sel([[0, '상대가 도전할 때까지 기다림'], [30, '30초'], [60, '1분'], [120, '2분']], s.passTimeoutSec);
     const direct = sel([[0, '끔 — 대결 찾기(자동 매칭)만'], [1, '켬 — 자동 매칭 + 친구에게 직접 신청']], s.directInvite ? 1 : 0);
+    const sound = sel([[1, '켬'], [0, '끔 — 모든 학생 기기에서 소리 없음']], s.sound === false ? 0 : 1);
     const level = sel([[0, '자동 (티어에 따라)'], ...Object.entries(LEVELS).map(([k, L]) => [k, `${L.name} 고정 (${L.n}×${L.n}, ${L.maxH}층, ${L.count[0]}~${L.count[1]}개)`])], s.level);
     el.append(h('section', { class: 'card form' },
       h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '⚙️'), '게임 설정'),
@@ -321,12 +322,15 @@ export function mount(root) {
       h('label', { class: 'field' }, h('span', null, '틀렸을 때 넘어간 기회가 다시 열리는 시간'), timeout,
         h('small', { class: 'muted' }, '상대가 일부러 도전하지 않고 시간을 끄는 것을 막고 싶을 때 정하세요.')),
       h('label', { class: 'field' }, h('span', null, '문제 난이도'), level),
+      h('label', { class: 'field' }, h('span', null, '효과음'), sound,
+        h('small', { class: 'muted' }, '쌓기, 상대 찾음, 대결 시작, 승리·패배 등에 짧은 소리가 나요(배경 음악은 없어요). 학생마다 위쪽 🔊 버튼으로 자기 기기만 끌 수도 있어요.')),
       h('div', { class: 'row-gap' },
         h('button', { class: 'btn btn-primary', onclick: async () => {
           await db.set('config/settings', {
             tierGap: Number(gap.value), placementGames: Number(placement.value),
             passTimeoutSec: Number(timeout.value), level: Number(level.value),
             directInvite: direct.value === '1',
+            sound: sound.value === '1',
           });
           toast('설정을 저장했어요.', 'ok');
         } }, '저장'),

@@ -4,6 +4,7 @@ import { LEVELS } from '../config.js';
 import { generatePuzzle, checkBuild, viewsOf, emptyHeights } from '../puzzle.js';
 import { puzzleCard, heightGrid } from '../views2d.js';
 import { Builder3D } from '../builder3d.js';
+import { play, playBuild } from '../sound.js';
 import { setPresenceState } from '../session.js';
 import { myStanding } from '../store.js';
 import { levelForMatch } from '../tiers.js';
@@ -45,6 +46,7 @@ export function mount(root) {
       modeRemove.classList.toggle('on', m === 'remove');
     }
     const onChange = (hs) => {
+      playBuild(heights, hs);
       heights = [...hs];
       grid.refresh();
       countEl.textContent = `${viewsOf(heights, p.n).count}개`;
@@ -58,7 +60,7 @@ export function mount(root) {
         else {
           const i = y * p.n + x;
           const v = heights[i] + d;
-          if (v >= 0 && v <= p.rows) { heights[i] = v; onChange(heights); }
+          if (v >= 0 && v <= p.rows) { const next = [...heights]; next[i] = v; onChange(next); }
         }
       },
     });
@@ -110,7 +112,7 @@ export function mount(root) {
       ),
     );
     builder = new Builder3D(canvasBox, { n: p.n, rows: p.rows, heights, onChange });
-    canvasBox.addEventListener('builder-limit', () => toast(`${p.rows}층까지만 쌓을 수 있어요.`, 'warn'));
+    canvasBox.addEventListener('builder-limit', () => { play('limit'); toast(`${p.rows}층까지만 쌓을 수 있어요.`, 'warn'); });
 
     function check() {
       const r = checkBuild(heights, p);
@@ -118,11 +120,13 @@ export function mount(root) {
       if (r.ok) {
         solved++;
         confetti(60);
+        play('correct');
         flash('⭕ 정답!', 'good');
         feedback.append(h('p', { class: 'ok' }, `정답이에요! (${fmtClock(Date.now() - startedAt)})`),
           h('button', { class: 'btn btn-primary', onclick: newPuzzle }, '다음 문제'));
         return;
       }
+      play('wrong');
       const mark = (ok, label) => h('li', { class: ok ? 'ok' : 'bad' }, `${ok ? '✔' : '✘'} ${label}`);
       feedback.append(
         h('p', { class: 'bad' }, '아직 달라요. 어디가 다른지 확인해 봐요.'),

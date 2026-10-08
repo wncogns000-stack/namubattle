@@ -13,6 +13,7 @@ import { READY_MS } from './config.js';
 import { pickOpponent, canMatch } from './tiers.js';
 import { h, toast, modal, tierBadge, josa, fmtClock } from './ui.js';
 import { session, myName, startGame, BATTLE_CLOSED_MSG } from './session.js';
+import { play } from './sound.js';
 
 const MATCH_GRACE_MS = 4000;   // 짝을 거는 중(두 번에 나눠 저장)이라 잠깐 어긋나 보일 수 있는 시간
 const START_WAIT_MS = 10_000;  // 둘 다 수락한 뒤 대결이 만들어지기를 기다리는 시간
@@ -215,6 +216,7 @@ function showReady(m, e, opp, age) {
       accept: h('button', { class: 'btn btn-primary btn-big', onclick: () => accept(m) }, '✅ 수락!'),
     };
     mm.ready = { id: m.id, els, close: null };
+    play('found');
     modal({
       title: '⚔️ 대결 상대를 찾았어요!',
       className: 'ready-modal',
@@ -246,6 +248,7 @@ function showReady(m, e, opp, age) {
 
 function accept(m) {
   const uid = session.uid;
+  play('accept');
   db.transaction(`queue/${uid}`, (v) => (v && v.match?.id === m.id ? { ...v, ready: true } : undefined)).catch(() => {});
 }
 

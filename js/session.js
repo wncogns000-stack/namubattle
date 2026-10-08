@@ -8,6 +8,7 @@ import { generatePuzzle } from './puzzle.js';
 import { h, toast, modal, josa, tierBadge, closeAllModals } from './ui.js';
 import { logoutStudent } from './auth.js';
 import { startMatchmaking, stopMatchmaking, leaveQueue } from './matchmaking.js';
+import { play } from './sound.js';
 
 export const session = {
   uid: null,
@@ -203,6 +204,7 @@ async function showNextInvite() {
   if (location.hash.startsWith('#/game/')) return;
   handledInvites.add(inv.from + ':' + inv.at);
   inviteModalOpen = true;
+  play('found');
   const st = standingOf(inv.from);
   const ans = await modal({
     title: '⚔️ 대결 신청이 왔어요!',

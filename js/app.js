@@ -3,8 +3,9 @@ import { initDB } from './db.js';
 import { startStore, store, subscribe, whenLoaded, myStanding } from './store.js';
 import { currentUid } from './auth.js';
 import { session, startSession, stopSession, go } from './session.js';
-import { h, tierBadge, confirmBox } from './ui.js';
+import { h, tierBadge, confirmBox, toast } from './ui.js';
 import { startUpdates } from './update.js';
+import { unlockAudio, setTeacherSound, teacherSoundOn, deviceSoundOn, setDeviceSound, soundOn, play } from './sound.js';
 import * as login from './screens/login.js';
 import * as lobby from './screens/lobby.js';
 import * as game from './screens/game.js';
@@ -60,6 +61,18 @@ function renderNav(active) {
   const nav = document.getElementById('nav');
   nav.innerHTML = '';
   const link = (hash, label, key) => h('a', { href: hash, class: active === key ? 'on' : '' }, label);
+  // 효과음 켜기/끄기 (이 기기에만 저장)
+  const soundBtn = h('button', {
+    class: `btn btn-small btn-ghost sound-btn ${soundOn() ? '' : 'off'}`,
+    title: soundOn() ? '효과음 끄기' : '효과음 켜기',
+    'aria-label': soundOn() ? '효과음 끄기' : '효과음 켜기',
+    onclick: () => {
+      if (!teacherSoundOn()) return toast('선생님이 효과음을 꺼 두었어요.', 'warn');
+      setDeviceSound(!deviceSoundOn());
+      renderNav(parseHash().name);
+      if (soundOn()) play('accept');
+    },
+  }, soundOn() ? '🔊' : '🔇');
   if (session.uid) {
     const me = myStanding();
     const inGame = active === 'game';
@@ -68,6 +81,7 @@ function renderNav(active) {
       inGame ? null : link('#/practice', '🧩 연습', 'practice'),
       inGame ? null : link('#/ranking', '🏆 랭킹', 'ranking'),
       inGame ? null : link('#/history', '📜 내 전적', 'history'),
+      soundBtn,
       h('span', { class: 'nav-me' }, me ? tierBadge(me, { size: 22, showName: false }) : null, h('b', null, store.users[session.uid]?.name || '')),
       inGame ? null : h('button', { class: 'btn btn-small btn-ghost', onclick: async () => {
         if (await confirmBox('로그아웃', '로그아웃할까요?', '로그아웃')) {
@@ -79,12 +93,13 @@ function renderNav(active) {
     ];
     nav.append(...items.filter(Boolean));
   } else {
-    nav.append(link('#/login', '로그인', 'login'), link('#/ranking', '🏆 랭킹', 'ranking'), link('#/teacher', '선생님', 'teacher'));
+    nav.append(link('#/login', '로그인', 'login'), link('#/ranking', '🏆 랭킹', 'ranking'), link('#/teacher', '선생님', 'teacher'), soundBtn);
   }
 }
 
 async function main() {
   startUpdates(() => parseHash().name);
+  unlockAudio();
   try {
     await initDB();
   } catch (e) {
@@ -106,6 +121,14 @@ async function main() {
   window.addEventListener('hashchange', render);
   // 이름·티어가 바뀌면 위쪽 메뉴도 새로
   subscribe((_, what) => { if (what === 'users' && session.uid) renderNav(parseHash().name); });
+  // 선생님이 효과음을 켜고 끄면 반영
+  setTeacherSound(store.settings.sound);
+  subscribe((_, what) => {
+    if (what !== 'settings') return;
+    const was = teacherSoundOn();
+    setTeacherSound(store.settings.sound);
+    if (was !== teacherSoundOn()) renderNav(parseHash().name);
+  });
   // 내 계정이 지워지면 로그아웃
   subscribe((_, what) => {
     if (what === 'users' && session.uid && !store.users[session.uid]) {

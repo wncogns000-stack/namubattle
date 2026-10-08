@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS = {
   passTimeoutSec: 0,   // 틀린 뒤 상대에게 넘어간 도전 기회가 다시 열리기까지의 시간(초). 0이면 상대가 도전할 때까지 계속 기다림
   level: 0,            // 0이면 티어에 따라 자동, 1~5면 모든 대결을 그 단계로 고정
   directInvite: false, // 친구에게 직접 대결 신청 (끄면 '대결 찾기' 자동 매칭만)
+  sound: true,         // 효과음 (끄면 모든 학생 기기에서 소리 없음)
 };
 
 // 문제 난이도. n: 바닥 칸 수(n×n), maxH: 최대 층수, cells: 바닥에 놓이는 칸 수 범위, count: 전체 쌓기나무 개수 범위
