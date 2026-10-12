@@ -158,6 +158,27 @@ test('효과음: 쌓기 판 변화에 맞는 소리', async () => {
   }
 });
 
+test('자동 매칭: 여러 학교면 되도록 다른 학교 친구와', () => {
+  const users = {};
+  for (let i = 0; i < 25; i++) users['u' + String(i).padStart(2, '0')] = { name: '학생' + i, rating: 1500 - i * 10, wins: 3, losses: 0, ...(i % 2 ? { school: 'b' } : {}) };
+  const { byUid } = computeStandings(users, { placementGames: 3 });
+  const schoolOf = (u) => users[u]?.school || 'main';
+  const S = { tierGap: 2 };
+  // u10(기본 학교)에게 같은 학교 u12, 다른 학교 u09·u11 후보 → 항상 다른 학교
+  const q = { u10: { at: 1 }, u09: { at: 2 }, u11: { at: 3 }, u12: { at: 4 } };
+  const seen = new Set();
+  for (let i = 0; i < 100; i++) seen.add(pickOpponent('u10', q, byUid, S, Math.random, () => true, schoolOf));
+  assert.deepEqual([...seen].sort(), ['u09', 'u11']);
+  // 다른 학교 후보가 없으면 같은 학교 친구와
+  assert.equal(pickOpponent('u10', { u10: { at: 1 }, u12: { at: 2 } }, byUid, S, Math.random, () => true, schoolOf), 'u12');
+  // 다른 학교 후보가 바로 전 상대뿐이면, 연달아 만나지 않도록 같은 학교의 새 친구를 먼저
+  assert.equal(pickOpponent('u10', { u10: { at: 1, last: 'u11' }, u11: { at: 2 }, u12: { at: 3 } }, byUid, S, Math.random, () => true, schoolOf), 'u12');
+  // 학교 정보를 주지 않으면 예전과 같음 (학교 상관없이 무작위)
+  const seen2 = new Set();
+  for (let i = 0; i < 200; i++) seen2.add(pickOpponent('u10', q, byUid, S));
+  assert.ok(seen2.has('u12'));
+});
+
 test('version.json과 앱 버전이 같다 (올릴 때 둘 다 바꿨는지 확인)', async () => {
   const { readFile } = await import('node:fs/promises');
   const src = await readFile(new URL('../js/update.js', import.meta.url), 'utf8');

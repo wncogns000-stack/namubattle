@@ -8,12 +8,13 @@
 //  4) 시간 안에 수락하지 않은 사람은 대기열에서 나가고, 수락한 사람은 기다린 순서 그대로 다시 찾아요.
 // 서버 없이 각 학생의 기기가 이 규칙대로 움직여요. 기다리는 동안 혼자 연습 등 다른 화면에 있어도 돼요.
 import { db } from './db.js';
-import { store, subscribe, battleOpen, isOnline, standingOf } from './store.js';
+import { store, subscribe, battleOpen, isOnline, standingOf, schoolOf } from './store.js';
 import { READY_MS } from './config.js';
 import { pickOpponent, canMatch } from './tiers.js';
 import { h, toast, modal, tierBadge, josa, fmtClock } from './ui.js';
 import { session, myName, startGame, BATTLE_CLOSED_MSG } from './session.js';
 import { play } from './sound.js';
+import { schoolChip } from './schools.js';
 
 const MATCH_GRACE_MS = 4000;   // 짝을 거는 중(두 번에 나눠 저장)이라 잠깐 어긋나 보일 수 있는 시간
 const START_WAIT_MS = 10_000;  // 둘 다 수락한 뒤 대결이 만들어지기를 기다리는 시간
@@ -145,7 +146,9 @@ function check() {
 async function tryMatch() {
   if (mm.busy || !battleOpen()) return;
   const uid = session.uid;
-  const opp = pickOpponent(uid, store.queue, store.standings.byUid, store.settings, Math.random, (u) => isOnline(u));
+  // 상대도 접속 중이고 그 학교도 대결 시간이어야 함. 여러 학교면 되도록 다른 학교 친구와
+  const opp = pickOpponent(uid, store.queue, store.standings.byUid, store.settings, Math.random,
+    (u) => isOnline(u) && battleOpen(schoolOf(u)), schoolOf);
   if (!opp) return;
   mm.busy = true;
   try {
@@ -225,7 +228,7 @@ function showReady(m, e, opp, age) {
       body: h('div', { class: 'ready-body' },
         h('div', { class: 'invite-body' },
           st ? tierBadge(st, { size: 44 }) : null,
-          h('p', { class: 'invite-text' }, h('b', null, name), `${josa(name, '과/와').slice(name.length)} 대결해요!`),
+          h('p', { class: 'invite-text' }, schoolChip(m.with), h('b', null, name), `${josa(name, '과/와').slice(name.length)} 대결해요!`),
         ),
         els.status,
         h('div', { class: 'ready-buttons' },

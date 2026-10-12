@@ -16,6 +16,9 @@ export const TIERS = [
   { id: 'iron',        name: '아이언',     quota: 2, color: '#78716c', color2: '#292524' },
 ];
 
+// 여러 학교가 함께 할 때, 처음부터 쓰던 학교(기본 학교)의 이름. 선생님 페이지 '학교' 탭에서 바꿀 수 있어요.
+export const MAIN_SCHOOL_NAME = '동평초';
+
 // 배치고사 중인 학생에게 보여 줄 표시
 export const UNRANKED = { id: 'unranked', name: '배치고사', color: '#94a3b8', color2: '#334155' };
 

@@ -1,6 +1,7 @@
 import { h, tierBadge, tierEmblem, toast, avatar, fmtTime, fmtClock } from '../ui.js';
 import { db } from '../db.js';
-import { store, subscribe, isOnline, presenceState, myStanding, battleOpen } from '../store.js';
+import { store, subscribe, isOnline, presenceState, myStanding, battleOpen, battleOf } from '../store.js';
+import { schoolChip, schoolList } from '../schools.js';
 import { TIERS } from '../config.js';
 import { canMatch, formatWinRate, streakOf } from '../tiers.js';
 import { session, sendInvite, setPresenceState } from '../session.js';
@@ -55,7 +56,7 @@ export function mount(root) {
   function renderProfile() {
     const me = myStanding();
     const st = streakOf(history);
-    if (!changed(profileBox, [me, st, store.standings.rankedCount, store.settings.tierGap])) return;
+    if (!changed(profileBox, [me, st, store.standings.rankedCount, store.settings.tierGap, schoolList()])) return;
     profileBox.innerHTML = '';
     if (!me) return;
     profileBox.appendChild(h('section', { class: `card player-card tier-bg-${me.tier.id}` },
@@ -65,7 +66,7 @@ export function mount(root) {
           h('span', { class: 'pc-tier' }, me.ranked ? me.tier.name : `배치고사 ${me.games}/${me.games + me.placementLeft}`),
           st.n >= 2 ? h('span', { class: `streak ${st.win ? '' : 'lose'}` }, st.win ? `🔥 ${st.n}연승 중` : `${st.n}연패… 힘내요!`) : null,
         ),
-        h('div', { class: 'pc-name' }, me.name),
+        h('div', { class: 'pc-name' }, me.name, schoolChip(me.uid)),
         h('div', { class: 'stat-tiles' },
           stat('점수', me.rating),
           me.ranked ? stat('순위', `${me.rank + 1}등`, `/${store.standings.rankedCount}`) : null,
@@ -87,7 +88,7 @@ export function mount(root) {
   function renderMatch() {
     const open = battleOpen();
     const q = queueInfo();
-    if (changed(matchBox, [open, store.battle.until, q.queued, q.matched, !!session.activeGame])) buildMatch(open, q);
+    if (changed(matchBox, [open, battleOf().until, q.queued, q.matched, !!session.activeGame])) buildMatch(open, q);
     if (!live) return;
     if (live.time) live.time.textContent = fmtClock(q.waitedMs);
     if (live.count) {
@@ -113,7 +114,7 @@ export function mount(root) {
       ));
       return;
     }
-    const until = store.battle.until ? h('span', { class: 'match-until' }, `⏰ ${fmtTime(store.battle.until)}까지 대결할 수 있어요`) : null;
+    const until = battleOf().until ? h('span', { class: 'match-until' }, `⏰ ${fmtTime(battleOf().until)}까지 대결할 수 있어요`) : null;
     live = { count: h('span', null) };
     if (!q.queued) {
       matchBox.appendChild(h('section', { class: 'card match-card' },
@@ -151,7 +152,7 @@ export function mount(root) {
     const open = battleOpen();
     const direct = !!store.settings.directInvite; // 선생님이 켰을 때만 직접 신청
     const searching = (uid) => !!store.queue?.[uid];
-    if (!changed(listBox, [me, others, others.map((s) => [presenceState(s.uid), searching(s.uid)]), store.settings, session.outgoing?.to, !!session.activeGame, open])) return;
+    if (!changed(listBox, [me, others, others.map((s) => [presenceState(s.uid), searching(s.uid)]), store.settings, session.outgoing?.to, !!session.activeGame, open, schoolList()])) return;
     listBox.innerHTML = '';
     if (!others.length) {
       listBox.appendChild(h('p', { class: 'empty' }, '아직 접속한 친구가 없어요. 친구들이 들어오면 여기에 보여요.'));
@@ -180,6 +181,7 @@ export function mount(root) {
         h('div', { class: 'pr-main' },
           h('div', { class: 'pr-top' },
             h('span', { class: 'player-name' }, s.name),
+            schoolChip(s.uid),
             searching(s.uid) && !busy ? h('span', { class: 'status-chip state-search' }, '🔎 대결 찾는 중')
               : h('span', { class: `status-chip state-${state}` }, STATE_LABEL[state] || ''),
           ),

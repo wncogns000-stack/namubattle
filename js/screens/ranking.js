@@ -5,6 +5,7 @@ import { TIERS, UNRANKED } from '../config.js';
 import { formatWinRate, winRate } from '../tiers.js';
 import { session } from '../session.js';
 import { rankSwitch } from './wins.js';
+import { schoolChip, multiSchool } from '../schools.js';
 
 export function mount(root) {
   const box = h('div', { class: 'page ranking-page' });
@@ -15,7 +16,7 @@ export function mount(root) {
     return h('li', { class: `rank-row tier-${s.tier.id} ${s.uid === session.uid ? 'me' : ''}` },
       h('span', { class: 'rank-no' }, s.ranked ? `${s.rank + 1}` : '-'),
       avatar(s.name, s.uid, isOnline(s.uid) ? 'lobby' : null),
-      h('a', { class: 'rank-name', href: `#/history/${s.uid}` }, s.name),
+      h('span', { class: 'rank-who' }, h('a', { class: 'rank-name', href: `#/history/${s.uid}` }, s.name), schoolChip(s.uid)),
       h('span', { class: 'rank-rating' }, s.rating, h('small', null, '점')),
       h('span', { class: 'rank-wl' }, `${s.wins}승 ${s.losses}패`),
       h('span', { class: 'rank-wr' },
@@ -40,12 +41,14 @@ export function mount(root) {
   function render() {
     box.innerHTML = '';
     const { list, rankedCount } = store.standings;
+    // 티어별 실제 인원 (학생 수가 25명이 아니면 같은 비율로 나눠져요)
+    const counts = TIERS.map((_, i) => list.filter((s) => s.tierIndex === i).length);
     const live = Object.values(store.live || {});
     box.append(rankSwitch('ranking'));
     box.append(h('section', { class: 'card rank-hero' },
       h('h2', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🏆'), '쌓기나무 배틀 랭킹'),
-      h('p', { class: 'muted', style: { margin: '0' } }, `티어는 점수 순위로 정해져요. 처음 ${store.settings.placementGames}판은 배치고사예요. (25명 기준 인원)`),
-      h('div', { class: 'tier-legend' }, TIERS.map((t) => h('span', { class: `tier-${t.id}` }, tierEmblem(t, 18), `${t.name} ${t.quota}`))),
+      h('p', { class: 'muted', style: { margin: '0' } }, `티어는 ${multiSchool() ? '모든 학교 학생을 합친 ' : ''}점수 순위로 정해져요. 처음 ${store.settings.placementGames}판은 배치고사예요.${rankedCount && rankedCount !== 25 ? ` (지금 ${rankedCount}명 기준 인원)` : ' (25명 기준 인원)'}`),
+      h('div', { class: 'tier-legend' }, TIERS.map((t, i) => h('span', { class: `tier-${t.id}` }, tierEmblem(t, 18), `${t.name} ${rankedCount ? counts[i] : t.quota}`))),
       live.length ? h('div', { class: 'live-strip' }, '🔥 진행 중', live.map((g) => {
         const n = Object.values(g.players || {});
         return h('span', { class: 'live-chip' }, n[0], h('span', { class: 'swords' }, '⚔️'), n[1]);

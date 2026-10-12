@@ -36,10 +36,11 @@ export function normalizeName(s) {
 }
 
 // 이름 + 비밀번호로 로그인 → uid
-export async function loginStudent(name, pw) {
+// school을 주면 그 학교 학생 중에서만 찾아요 (학교가 여러 개일 때 같은 이름이 있을 수 있어서)
+export async function loginStudent(name, pw, school) {
   const users = (await db.get('users')) || {};
   const target = normalizeName(name);
-  const candidates = Object.entries(users).filter(([, u]) => normalizeName(u.name) === target);
+  const candidates = Object.entries(users).filter(([, u]) => normalizeName(u.name) === target && (!school || (u.school || 'main') === school));
   if (!candidates.length) throw new Error('등록된 이름이 없어요. 이름을 다시 확인하거나 선생님께 물어보세요.');
   for (const [uid] of candidates) {
     const secret = await db.get(`secrets/${uid}`);
@@ -65,26 +66,43 @@ export async function changeStudentPassword(uid, oldPw, newPw) {
   await db.set(`secrets/${uid}`, await makeSecret(newPw));
 }
 
-// ───────── 선생님 ─────────
-export async function teacherExists() {
-  return !!(await db.get('config/teacher'));
+// ───────── 선생님 (학교마다 따로) ─────────
+// 기본 학교(main): config/teacher (처음부터 쓰던 그대로), 다른 학교: config/teachers/학교
+export const teacherPath = (sid) => (!sid || sid === 'main' ? 'config/teacher' : `config/teachers/${sid}`);
+
+export async function teacherExists(sid = 'main') {
+  return !!(await db.get(teacherPath(sid)));
 }
 
+// 맨 처음 기본 학교 선생님 비밀번호 만들기 (다른 학교 비밀번호는 기본 학교 선생님이 정해 줌)
 export async function setupTeacher(pw) {
   const res = await db.transaction('config/teacher', (cur) => (cur ? undefined : null));
   if (res.value) throw new Error('이미 선생님 비밀번호가 있어요.');
   await db.set('config/teacher', await makeSecret(pw));
-  sessionStorage.setItem(TEACHER_KEY, '1');
+  sessionStorage.setItem(TEACHER_KEY, 'main');
 }
 
-export async function loginTeacher(pw) {
-  const secret = await db.get('config/teacher');
+export async function loginTeacher(pw, sid = 'main') {
+  const secret = await db.get(teacherPath(sid));
+  if (!secret) throw new Error('이 학교 선생님 비밀번호가 아직 없어요. 처음 학교를 만든 선생님께 부탁해 주세요.');
   if (!(await checkSecret(secret, pw))) throw new Error('선생님 비밀번호가 맞지 않아요.');
-  sessionStorage.setItem(TEACHER_KEY, '1');
+  sessionStorage.setItem(TEACHER_KEY, sid);
+}
+
+// 로그인한 선생님의 학교 (예전에 저장된 '1'은 기본 학교)
+export function teacherSchool() {
+  const v = sessionStorage.getItem(TEACHER_KEY);
+  if (!v) return null;
+  return v === '1' ? 'main' : v;
 }
 
 export function isTeacher() {
-  return sessionStorage.getItem(TEACHER_KEY) === '1';
+  return !!teacherSchool();
+}
+
+// 기본 학교 선생님: 게임 설정·학교 추가·초기화까지 할 수 있음
+export function isMainTeacher() {
+  return teacherSchool() === 'main';
 }
 
 export function logoutTeacher() {

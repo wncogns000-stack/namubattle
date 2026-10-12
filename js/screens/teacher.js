@@ -1,12 +1,15 @@
 // 선생님 페이지: 학생 등록, 비밀번호 초기화, 진행 중인 대결 관리, 설정, 초기화
 import { h, toast, confirmBox, promptBox, tierBadge, fmtDuration, fmtTime } from '../ui.js';
 import { db } from '../db.js';
-import { store, subscribe, isOnline, battleOpen } from '../store.js';
+import { store, subscribe, isOnline, battleOpen, battleOf, schoolOf } from '../store.js';
 import { DEFAULT_SETTINGS, LEVELS, START_RATING, TIERS } from '../config.js';
 import { formatWinRate } from '../tiers.js';
-import { teacherExists, setupTeacher, loginTeacher, isTeacher, logoutTeacher, makeSecret, normalizeName, checkSecret } from '../auth.js';
+import { teacherExists, setupTeacher, loginTeacher, isTeacher, logoutTeacher, makeSecret, normalizeName, checkSecret, teacherSchool, isMainTeacher, teacherPath } from '../auth.js';
+import { MAIN, schoolList, multiSchool, schoolName, schoolChip, battlePath } from '../schools.js';
 import { cancelGame } from '../match.js';
 import { APP_VERSION } from '../update.js';
+
+const LAST_SCHOOL_KEY = 'namubattle-teacher-school';
 
 const SAMPLE_NAMES = ['민준', '서연', '도윤', '하은', '시우', '지우', '주원', '서윤', '하준', '지민', '예준', '수아', '유준',
   '하린', '은우', '지아', '건우', '다은', '우진', '채원', '선우', '윤서', '현우', '소율', '지호'];
@@ -16,13 +19,22 @@ export function mount(root) {
   root.appendChild(box);
   let tab = 'students';
   let off = null;
+  let tsid = MAIN;   // 로그인한 선생님의 학교
+  let admin = false; // 기본 학교 선생님인지
 
   async function start() {
     box.innerHTML = '';
     if (isTeacher()) return renderMain();
-    const exists = await teacherExists();
+    const exists = await teacherExists(MAIN);
     const pw = h('input', { type: 'password', autocomplete: 'off', placeholder: '선생님 비밀번호' });
     const pw2 = h('input', { type: 'password', autocomplete: 'off', placeholder: '한 번 더' });
+    // 여러 학교면 어느 학교 선생님인지 고르기
+    const schools = schoolList();
+    let last = null;
+    try { last = localStorage.getItem(LAST_SCHOOL_KEY); } catch { /* 무시 */ }
+    const schoolSel = exists && schools.length > 1
+      ? h('select', null, schools.map((sc) => h('option', { value: sc.id, selected: sc.id === last }, sc.name)))
+      : null;
     const form = h('form', { class: 'card login-card', onsubmit: async (e) => {
       e.preventDefault();
       try {
@@ -32,7 +44,9 @@ export function mount(root) {
           await setupTeacher(pw.value);
           toast('선생님 비밀번호를 만들었어요.', 'ok');
         } else {
-          await loginTeacher(pw.value);
+          const sid = schoolSel ? schoolSel.value : MAIN;
+          await loginTeacher(pw.value, sid);
+          try { localStorage.setItem(LAST_SCHOOL_KEY, sid); } catch { /* 무시 */ }
         }
         renderMain();
       } catch (err) {
@@ -42,6 +56,7 @@ export function mount(root) {
       h('h2', null, '👩‍🏫 선생님 페이지'),
       exists ? h('p', { class: 'muted' }, '선생님 비밀번호를 입력하세요.')
         : h('p', { class: 'muted' }, '처음 오셨네요! 선생님 비밀번호를 만들어 주세요. 학생 등록과 관리에 쓰여요.'),
+      schoolSel ? h('label', { class: 'field' }, h('span', null, '학교'), schoolSel) : null,
       h('label', { class: 'field' }, h('span', null, '비밀번호'), pw),
       exists ? null : h('label', { class: 'field' }, h('span', null, '비밀번호 확인'), pw2),
       h('button', { class: 'btn btn-primary btn-big', type: 'submit' }, exists ? '들어가기' : '비밀번호 만들기'),
@@ -53,14 +68,23 @@ export function mount(root) {
 
   function renderMain() {
     off && off();
+    tsid = teacherSchool() || MAIN;
+    admin = isMainTeacher();
     const content = h('div');
     const battleBox = h('div');
-    const tabs = [
+    // 기본 학교 선생님: 모든 탭 / 다른 학교 선생님: 자기 학교 학생·대결만
+    const tabs = admin ? [
       ['students', '학생 관리'],
       ['live', '진행 중인 대결'],
       ['settings', '게임 설정'],
+      ['schools', '학교'],
       ['reset', '초기화·체험'],
+    ] : [
+      ['students', '학생 관리'],
+      ['live', '진행 중인 대결'],
+      ['account', '비밀번호'],
     ];
+    if (!tabs.some(([k]) => k === tab)) tab = 'students';
     const tabBar = h('div', { class: 'tabs' }, tabs.map(([k, label]) => h('button', {
       class: `tab ${tab === k ? 'on' : ''}`,
       onclick: () => { tab = k; renderMain(); },
@@ -68,7 +92,7 @@ export function mount(root) {
     box.innerHTML = '';
     box.append(
       h('div', { class: 'card teacher-head' },
-        h('h2', { class: 'card-title', style: { margin: '0' } }, h('span', { class: 'title-icon' }, '👩‍🏫'), '선생님 페이지'),
+        h('h2', { class: 'card-title', style: { margin: '0' } }, h('span', { class: 'title-icon' }, '👩‍🏫'), multiSchool() ? `${schoolName(tsid)} 선생님` : '선생님 페이지'),
         h('span', { class: 'mode-chip' }, db.mode === 'local' ? '💡 체험 모드 (이 브라우저에만 저장)' : '🟢 Firebase 연결됨'),
         h('span', { class: 'mode-chip', title: '게임 버전' }, `버전 ${APP_VERSION}`),
         h('button', { class: 'btn btn-small', onclick: () => { logoutTeacher(); start(); } }, '나가기'),
@@ -79,8 +103,9 @@ export function mount(root) {
     );
     const drawBattle = () => {
       // 내용이 그대로면 다시 그리지 않음 (누르려던 버튼이 바뀌지 않도록)
-      const until = store.battle.until;
-      const key = JSON.stringify([battleOpen(), until, Object.keys(store.live || {}).length, until ? Math.ceil((until - db.now()) / 60_000) : 0]);
+      const until = battleOf(tsid).until;
+      const others = schoolList().filter((sc) => sc.id !== tsid).map((sc) => [sc.id, sc.name, battleOpen(sc.id), battleOf(sc.id).until]);
+      const key = JSON.stringify([battleOpen(tsid), until, myLiveCount(), until ? Math.ceil((until - db.now()) / 60_000) : 0, others]);
       if (battleBox.dataset.key === key) return;
       battleBox.dataset.key = key;
       battleBox.innerHTML = '';
@@ -89,14 +114,18 @@ export function mount(root) {
     drawBattle();
     const draw = () => {
       content.innerHTML = '';
-      ({ students: drawStudents, live: drawLive, settings: drawSettings, reset: drawReset })[tab](content);
+      ({ students: drawStudents, live: drawLive, settings: drawSettings, schools: drawSchools, reset: drawReset, account: drawAccount })[tab](content);
     };
     draw();
     let lastOnline = '';
-    const offBattle = subscribe((_, what) => { if (what === 'battle' || what === 'live') drawBattle(); });
+    const offBattle = subscribe((_, what) => {
+      // 학교가 추가·이름 변경되면 제목·탭까지 새로 (게임 설정을 고치는 중이면 입력이 지워지지 않게 그대로)
+      if (what === 'schools' && tab !== 'settings') return renderMain();
+      if (what === 'battle' || what === 'live' || what === 'schools') drawBattle();
+    });
     const battleTimer = setInterval(drawBattle, 15_000); // 남은 시간 표시
     const offMain = subscribe((_, what) => {
-      if (tab === 'settings') return; // 입력 중인 값이 지워지지 않도록
+      if (tab === 'settings' || tab === 'schools' || tab === 'account') return; // 입력 중인 값이 지워지지 않도록
       if (tab === 'reset') return;
       if (what === 'queue' && tab !== 'live') return;
       if (what === 'presence') {
@@ -114,18 +143,26 @@ export function mount(root) {
 
   // ───────── 대결 열기·닫기 ─────────
   // 선생님이 열어 둔 동안에만 학생끼리 대결할 수 있어요. (로그인·혼자 연습·랭킹은 언제나 가능)
+  // 우리 학교 학생이 들어 있는 진행 중인 대결 수
+  function myLiveCount() {
+    return Object.values(store.live || {}).filter((g) => Object.keys(g.players || {}).some((u) => schoolOf(u) === tsid)).length;
+  }
+
   function battleControl() {
-    const open = battleOpen();
-    const until = store.battle.until;
-    const liveCount = Object.keys(store.live || {}).length;
+    const open = battleOpen(tsid);
+    const until = battleOf(tsid).until;
+    const liveCount = myLiveCount();
     const setBattle = async (minutes) => {
       const now = db.now();
       try {
         if (minutes === null) {
-          await db.update('', { 'config/battle': { open: false, at: now }, queue: null }); // 대결 찾는 중이던 학생도 정리
+          // 우리 학교 학생 중 대결 찾는 중이던 학생도 정리 (다른 학교 학생은 그대로)
+          const up = { [battlePath(tsid)]: { open: false, at: now } };
+          for (const uid of Object.keys(store.queue || {})) if (schoolOf(uid) === tsid) up[`queue/${uid}`] = null;
+          await db.update('', up);
           toast('대결을 닫았어요.', 'ok');
         } else {
-          await db.set('config/battle', { open: true, until: minutes ? now + minutes * 60_000 : null, at: now });
+          await db.set(battlePath(tsid), { open: true, until: minutes ? now + minutes * 60_000 : null, at: now });
           toast(minutes ? `대결을 열었어요. ${fmtTime(now + minutes * 60_000)}에 저절로 닫혀요.` : '대결을 열었어요. 닫기 전까지 계속 열려 있어요.', 'ok');
         }
       } catch (e) {
@@ -142,10 +179,16 @@ export function mount(root) {
     else if (until) desc = `${fmtTime(until)}에 저절로 닫혀요. (${Math.max(1, Math.ceil((until - db.now()) / 60_000))}분 남음)`;
     else desc = '선생님이 닫을 때까지 열려 있어요.';
     if (!open && liveCount) desc += ` 진행 중인 대결 ${liveCount}개는 끝까지 할 수 있어요.`;
+    const others = multiSchool() ? schoolList().filter((sc) => sc.id !== tsid) : [];
     return h('section', { class: `card battle-control ${open ? 'is-open' : 'is-closed'}` },
       h('div', { class: 'bc-main' },
-        h('span', { class: 'bc-state' }, open ? '🔓 대결 열림' : '🔒 대결 닫힘'),
+        h('span', { class: 'bc-state' }, `${multiSchool() ? schoolName(tsid) + ' ' : ''}${open ? '🔓 대결 열림' : '🔒 대결 닫힘'}`),
         h('span', { class: 'bc-desc' }, desc),
+        others.length ? h('span', { class: 'bc-others' }, others.map((sc) => {
+          const o = battleOpen(sc.id);
+          const u = battleOf(sc.id).until;
+          return `${sc.name}: ${o ? `열림${u ? ` (${fmtTime(u)}까지)` : ''}` : '닫힘'}`;
+        }).join(' · '), ' — 다른 학교 친구와는 두 학교가 모두 열려 있을 때 대결해요.') : null,
       ),
       h('div', { class: 'bc-buttons' },
         open
@@ -157,11 +200,12 @@ export function mount(root) {
 
   // ───────── 학생 관리 ─────────
   function drawStudents(el) {
-    const list = [...store.standings.list].sort((a, b) => (a.no ?? 999) - (b.no ?? 999) || String(a.name).localeCompare(String(b.name), 'ko'));
+    const list = store.standings.list.filter((s) => schoolOf(s.uid) === tsid).sort((a, b) => (a.no ?? 999) - (b.no ?? 999) || String(a.name).localeCompare(String(b.name), 'ko'));
     const ta = h('textarea', { rows: 6, placeholder: '한 줄에 한 명씩: 번호 이름 비밀번호\n예)\n1 주채훈 1234\n2 이서연 5678' });
     el.append(
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🧑‍🎓'), `학생 목록 (${list.length}명)`),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🧑‍🎓'), `${multiSchool() ? schoolName(tsid) + ' ' : ''}학생 목록 (${list.length}명)`),
+        multiSchool() ? h('p', { class: 'muted small' }, '티어와 순위는 모든 학교 학생을 합쳐서 정해져요.') : null,
         list.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
           h('thead', null, h('tr', null, ['번호', '이름', '티어', '점수', '전적', '승률', '접속', ''].map((t) => h('th', null, t)))),
           h('tbody', null, list.map((s) => h('tr', null,
@@ -190,10 +234,11 @@ export function mount(root) {
     );
   }
 
-  async function addStudents(text) {
+  // sid: 등록할 학교 (기본: 로그인한 선생님의 학교). 기본 학교 학생은 예전처럼 학교 정보 없이 저장
+  async function addStudents(text, sid = tsid) {
     const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     if (!lines.length) return toast('등록할 학생을 입력해 주세요.', 'warn');
-    const existing = new Set(Object.values(store.users).map((u) => normalizeName(u.name)));
+    const existing = new Set(Object.entries(store.users).filter(([uid]) => schoolOf(uid) === sid).map(([, u]) => normalizeName(u.name)));
     const rows = [];
     const errors = [];
     for (const line of lines) {
@@ -213,7 +258,7 @@ export function mount(root) {
       const up = {};
       for (const r of rows) {
         const uid = 'u' + db.newKey();
-        up[`users/${uid}`] = { name: r.name, no: r.no, rating: START_RATING, wins: 0, losses: 0, createdAt: db.now() };
+        up[`users/${uid}`] = { name: r.name, no: r.no, rating: START_RATING, wins: 0, losses: 0, createdAt: db.now(), ...(sid !== MAIN ? { school: sid } : {}) };
         up[`secrets/${uid}`] = await makeSecret(r.pw);
       }
       await db.update('', up);
@@ -239,7 +284,7 @@ export function mount(root) {
     if (!v) return;
     const name = normalizeName(v.name);
     if (!name) return toast('이름을 입력해 주세요.', 'warn');
-    const dup = Object.entries(store.users).some(([uid, u]) => uid !== s.uid && normalizeName(u.name) === name);
+    const dup = Object.entries(store.users).some(([uid, u]) => uid !== s.uid && schoolOf(uid) === schoolOf(s.uid) && normalizeName(u.name) === name);
     if (dup) return toast('이미 있는 이름이에요.', 'warn');
     await db.update(`users/${s.uid}`, { name, no: v.no === '' ? null : Number(v.no) });
     toast('저장했어요.', 'ok');
@@ -256,7 +301,7 @@ export function mount(root) {
 
   function exportCsv() {
     const rows = [['번호', '이름', '티어', '순위', '점수', '승', '패', '승률']];
-    for (const s of store.standings.list) {
+    for (const s of store.standings.list.filter((x) => schoolOf(x.uid) === tsid)) {
       rows.push([s.no ?? '', s.name, s.ranked ? s.tier.name : '배치고사', s.ranked ? s.rank + 1 : '', s.rating, s.wins, s.losses, formatWinRate(s.wins, s.losses)]);
     }
     const csv = '﻿' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
@@ -269,23 +314,27 @@ export function mount(root) {
   // ───────── 진행 중인 대결 ─────────
   function drawLive(el) {
     const games = Object.entries(store.live || {}).sort((a, b) => (a[1].createdAt || 0) - (b[1].createdAt || 0));
-    const online = store.standings.list.filter((s) => isOnline(s.uid));
+    const online = store.standings.list.filter((s) => isOnline(s.uid) && schoolOf(s.uid) === tsid);
     const searching = online.filter((s) => store.queue?.[s.uid]);
+    const nameWithSchool = (uid, name) => h('span', { class: 'name-with-school' }, name, schoolChip(uid));
     el.append(
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '⚔️'), `진행 중인 대결 (${games.length})`),
         games.length ? h('ul', { class: 'player-list' }, games.map(([gid, g]) => {
           const names = Object.values(g.players || {});
+          const uids = Object.keys(g.players || {});
+          // 다른 학교 선생님은 자기 학교 학생이 들어 있는 대결만 무효 처리할 수 있음
+          const mine = admin || uids.some((u) => schoolOf(u) === tsid);
           return h('li', { class: 'player-row' },
-            h('b', null, `${names[0]} vs ${names[1]}`),
+            h('b', { class: 'live-names' }, nameWithSchool(uids[0], names[0]), ' vs ', nameWithSchool(uids[1], names[1])),
             h('span', { class: 'player-meta' }, `${LEVELS[g.level]?.name || ''} · ${fmtDuration(db.now() - (g.createdAt || db.now()))} 지남`),
-            h('button', { class: 'btn btn-small btn-danger', onclick: async () => {
+            mine ? h('button', { class: 'btn btn-small btn-danger', onclick: async () => {
               if (await confirmBox('대결 무효', `${names[0]} vs ${names[1]} 대결을 무효로 끝낼까요? 점수에 반영되지 않아요.`, '무효 처리', 'danger')) {
                 await cancelGame(gid, 'teacher');
                 await db.remove(`live/${gid}`);
                 toast('무효 처리했어요.');
               }
-            } }, '무효 처리'),
+            } }, '무효 처리') : null,
           );
         })) : h('p', { class: 'empty' }, '진행 중인 대결이 없어요.'),
       ),
@@ -343,14 +392,96 @@ export function mount(root) {
     ));
   }
 
+  // ───────── 학교 (기본 학교 선생님만) ─────────
+  function drawSchools(el) {
+    const list = schoolList();
+    const count = (sid) => Object.keys(store.users).filter((uid) => schoolOf(uid) === sid).length;
+    const nameIn = h('input', { type: 'text', autocomplete: 'off', placeholder: '예: 대서초' });
+    const pwIn = h('input', { type: 'text', autocomplete: 'off', placeholder: '4글자 이상' });
+    el.append(
+      h('section', { class: 'card' },
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🏫'), `함께 하는 학교 (${list.length})`),
+        h('p', { class: 'muted small' }, '학교마다 선생님 비밀번호, 학생 명단, 대결 시간이 따로예요. 랭킹·티어는 모든 학교 학생을 합쳐서 정하고, 학교별 승패 합계는 보여 주지 않아요. 대결 찾기는 조건이 맞는 친구 중 되도록 다른 학교 친구와 짝지어요.'),
+        h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
+          h('thead', null, h('tr', null, ['학교', '학생 수', ''].map((t) => h('th', null, t)))),
+          h('tbody', null, list.map((sc) => h('tr', null,
+            h('td', null, h('b', null, sc.name), sc.id === MAIN ? h('small', { class: 'muted' }, ' (기본 학교 · 게임 설정 관리)') : null),
+            h('td', null, `${count(sc.id)}명`),
+            h('td', { class: 'actions' },
+              h('button', { class: 'btn btn-small', onclick: () => renameSchool(sc) }, '이름'),
+              sc.id !== MAIN ? h('button', { class: 'btn btn-small', onclick: () => resetSchoolPw(sc) }, '선생님 비밀번호') : null,
+              sc.id !== MAIN ? h('button', { class: 'btn btn-small btn-danger', onclick: () => removeSchool(sc, count(sc.id)) }, '삭제') : null,
+            ),
+          ))),
+        )),
+      ),
+      h('section', { class: 'card form' },
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '➕'), '학교 추가'),
+        h('label', { class: 'field' }, h('span', null, '학교 이름'), nameIn),
+        h('label', { class: 'field' }, h('span', null, '그 학교 선생님 비밀번호'), pwIn,
+          h('small', { class: 'muted' }, '추가한 뒤 이 비밀번호를 그 학교 선생님께 알려 주세요. 그 선생님은 선생님 페이지에서 학교를 고르고 이 비밀번호로 들어가 학생 등록과 대결 열기·닫기를 직접 할 수 있어요(게임 설정·초기화는 할 수 없어요). 비밀번호는 그 선생님이 나중에 바꿀 수 있어요.')),
+        h('button', { class: 'btn btn-primary', onclick: () => addSchool(nameIn.value, pwIn.value) }, '학교 추가'),
+      ),
+    );
+  }
+
+  async function addSchool(rawName, pw) {
+    const name = String(rawName || '').trim();
+    if (!name) return toast('학교 이름을 입력해 주세요.', 'warn');
+    if (schoolList().some((sc) => normalizeName(sc.name) === normalizeName(name))) return toast('이미 있는 학교 이름이에요.', 'warn');
+    if (!pw || pw.length < 4) return toast('선생님 비밀번호는 4글자 이상으로 해 주세요.', 'warn');
+    const sid = 's' + db.newKey();
+    await db.update('', { [`schools/${sid}`]: { name, createdAt: db.now() }, [teacherPath(sid)]: await makeSecret(pw) });
+    toast(`${name} 학교를 추가했어요. 비밀번호를 그 학교 선생님께 알려 주세요.`, 'ok', 4500);
+    renderMain();
+  }
+
+  async function renameSchool(sc) {
+    const v = await promptBox('학교 이름 바꾸기', [{ name: 'name', label: '학교 이름', value: sc.name }], '저장');
+    if (!v) return;
+    const name = String(v.name || '').trim();
+    if (!name) return toast('학교 이름을 입력해 주세요.', 'warn');
+    if (schoolList().some((x) => x.id !== sc.id && normalizeName(x.name) === normalizeName(name))) return toast('이미 있는 학교 이름이에요.', 'warn');
+    await db.update(`schools/${sc.id}`, { name });
+    toast('저장했어요.', 'ok');
+    renderMain();
+  }
+
+  async function resetSchoolPw(sc) {
+    const v = await promptBox(`${sc.name} 선생님 비밀번호 새로 정하기`, [{ name: 'pw', label: '새 비밀번호', type: 'text' }], '바꾸기');
+    if (!v) return;
+    if (v.pw.length < 4) return toast('비밀번호는 4글자 이상으로 해 주세요.', 'warn');
+    await db.set(teacherPath(sc.id), await makeSecret(v.pw));
+    toast(`${sc.name} 선생님 비밀번호를 바꿨어요.`, 'ok');
+  }
+
+  async function removeSchool(sc, students) {
+    if (students > 0) return toast('학생이 있는 학교는 지울 수 없어요. 그 학교 선생님이 먼저 학생을 지워야 해요.', 'warn', 4000);
+    if (!(await confirmBox('학교 삭제', `${sc.name} 학교를 목록에서 지울까요?`, '삭제', 'danger'))) return;
+    await db.update('', { [`schools/${sc.id}`]: null, [teacherPath(sc.id)]: null, [battlePath(sc.id)]: null });
+    toast('삭제했어요.');
+    renderMain();
+  }
+
+  // ───────── 비밀번호 (다른 학교 선생님) ─────────
+  function drawAccount(el) {
+    el.append(h('section', { class: 'card' },
+      h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🔑'), '선생님 비밀번호 바꾸기'),
+      h('p', { class: 'muted small' }, `게임 설정·학교 추가·초기화는 ${schoolName(MAIN)} 선생님이 관리해요.`),
+      h('button', { class: 'btn', onclick: changeTeacherPw }, '바꾸기'),
+    ));
+  }
+
   // ───────── 초기화·체험 ─────────
   function drawReset(el) {
+    const sampleSchool = multiSchool() ? h('select', { class: 'inline-select' }, schoolList().map((sc) => h('option', { value: sc.id }, sc.name))) : null;
     el.append(
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🧪'), '체험용 도구'),
         h('p', { class: 'muted small' }, '수업 전에 미리 해 보고 싶을 때 쓰세요. 다 해 본 뒤에는 "모든 데이터 지우기"로 정리할 수 있어요.'),
         h('div', { class: 'row-gap' },
-          h('button', { class: 'btn', onclick: makeSamples }, '체험용 학생 25명 만들기 (비밀번호 1234)'),
+          sampleSchool,
+          h('button', { class: 'btn', onclick: () => makeSamples(sampleSchool ? sampleSchool.value : tsid) }, '체험용 학생 25명 만들기 (비밀번호 1234)'),
           h('button', { class: 'btn', onclick: randomizeScores }, '무작위 점수로 티어 미리 보기'),
         ),
       ),
@@ -376,11 +507,11 @@ export function mount(root) {
     return v && v.word.trim() === '초기화';
   }
 
-  async function makeSamples() {
-    const existing = new Set(Object.values(store.users).map((u) => normalizeName(u.name)));
+  async function makeSamples(sid = tsid) {
+    const existing = new Set(Object.entries(store.users).filter(([uid]) => schoolOf(uid) === sid).map(([, u]) => normalizeName(u.name)));
     const lines = SAMPLE_NAMES.map((n, i) => (existing.has(n) ? null : `${i + 1} ${n} 1234`)).filter(Boolean);
     if (!lines.length) return toast('체험용 학생이 이미 있어요.');
-    await addStudents(lines.join('\n'));
+    await addStudents(lines.join('\n'), sid);
   }
 
   async function randomizeScores() {
@@ -397,7 +528,7 @@ export function mount(root) {
   }
 
   async function seasonReset() {
-    if (!(await typedConfirm('점수·전적 초기화', '모든 학생의 점수가 1000점, 0승 0패로 돌아가고 전적이 지워져요.'))) return;
+    if (!(await typedConfirm('점수·전적 초기화', `${multiSchool() ? '모든 학교의 ' : ''}모든 학생의 점수가 1000점, 0승 0패로 돌아가고 전적이 지워져요.`))) return;
     const up = { history: null, games: null, builds: null, live: null, active: null, invites: null, queue: null };
     for (const uid of Object.keys(store.users)) {
       up[`users/${uid}/rating`] = START_RATING;
@@ -409,10 +540,10 @@ export function mount(root) {
   }
 
   async function wipeAll() {
-    if (!(await typedConfirm('모든 데이터 지우기', '학생 계정, 점수, 전적이 모두 지워져요.'))) return;
+    if (!(await typedConfirm('모든 데이터 지우기', `${multiSchool() ? '모든 학교의 ' : ''}학생 계정, 점수, 전적이 모두 지워져요. (학교 목록과 선생님 비밀번호는 남아요)`))) return;
     await db.update('', {
       users: null, secrets: null, history: null, games: null, builds: null, live: null,
-      active: null, invites: null, presence: null, queue: null, 'config/settings': null, 'config/battle': null, keys: null,
+      active: null, invites: null, presence: null, queue: null, 'config/settings': null, 'config/battle': null, 'config/battles': null, keys: null,
     });
     toast('모두 지웠어요.', 'ok');
   }
@@ -424,9 +555,9 @@ export function mount(root) {
       { name: 'pw2', label: '새 비밀번호 확인', type: 'password' },
     ], '바꾸기');
     if (!v) return;
-    if (!(await checkSecret(await db.get('config/teacher'), v.old))) return toast('지금 비밀번호가 맞지 않아요.', 'error');
+    if (!(await checkSecret(await db.get(teacherPath(tsid)), v.old))) return toast('지금 비밀번호가 맞지 않아요.', 'error');
     if (v.pw1.length < 4 || v.pw1 !== v.pw2) return toast('새 비밀번호를 확인해 주세요 (4글자 이상, 두 번 똑같이).', 'warn');
-    await db.set('config/teacher', await makeSecret(v.pw1));
+    await db.set(teacherPath(tsid), await makeSecret(v.pw1));
     toast('바꿨어요.', 'ok');
   }
 

@@ -1,7 +1,7 @@
 // 로그인한 학생의 접속 상태, 대결 신청/수락(선생님이 켰을 때), 진행 중인 대결 연결
 // 자동 매칭(대결 찾기)은 matchmaking.js
 import { db } from './db.js';
-import { store, standingOf, isOnline, subscribe, battleOpen } from './store.js';
+import { store, standingOf, isOnline, subscribe, battleOpen, schoolOf } from './store.js';
 import { HEARTBEAT_MS, INVITE_TTL_MS } from './config.js';
 import { canMatch, levelForMatch } from './tiers.js';
 import { generatePuzzle } from './puzzle.js';
@@ -9,6 +9,7 @@ import { h, toast, modal, josa, tierBadge, closeAllModals } from './ui.js';
 import { logoutStudent } from './auth.js';
 import { startMatchmaking, stopMatchmaking, leaveQueue } from './matchmaking.js';
 import { play } from './sound.js';
+import { schoolChip } from './schools.js';
 
 export const session = {
   uid: null,
@@ -115,6 +116,10 @@ export async function sendInvite(toUid) {
     toast(INVITE_OFF_MSG, 'warn');
     return;
   }
+  if (!battleOpen(schoolOf(toUid))) {
+    toast('그 친구의 학교는 지금 대결 시간이 아니에요.', 'warn');
+    return;
+  }
   const me = standingOf(session.uid);
   const other = standingOf(toUid);
   if (!canMatch(me, other, store.settings)) {
@@ -210,7 +215,7 @@ async function showNextInvite() {
     title: '⚔️ 대결 신청이 왔어요!',
     body: h('div', { class: 'invite-body' },
       st ? tierBadge(st, { size: 44 }) : null,
-      h('p', { class: 'invite-text' }, h('b', null, inv.fromName || '친구'), ' 님이 쌓기나무 대결을 신청했어요.'),
+      h('p', { class: 'invite-text' }, schoolChip(inv.from), h('b', null, inv.fromName || '친구'), ' 님이 쌓기나무 대결을 신청했어요.'),
     ),
     buttons: [
       { label: '거절', value: 'no' },
@@ -235,6 +240,11 @@ async function acceptInvite(inv) {
   if (!directInviteOn()) {
     toast(battleOpen() ? INVITE_OFF_MSG : BATTLE_CLOSED_MSG, 'warn');
     await db.update(`invites/${me}/${from}`, { status: battleOpen() ? 'off' : 'closed' });
+    return;
+  }
+  if (!battleOpen(schoolOf(from))) {
+    toast('신청한 친구의 학교는 지금 대결 시간이 아니에요.', 'warn');
+    await db.update(`invites/${me}/${from}`, { status: 'closed' });
     return;
   }
   const sMe = standingOf(me), sOther = standingOf(from);

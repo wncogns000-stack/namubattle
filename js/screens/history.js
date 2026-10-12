@@ -6,6 +6,7 @@ import { LEVELS } from '../config.js';
 import { formatWinRate, byOpponent, streakOf } from '../tiers.js';
 import { session, setPresenceState } from '../session.js';
 import { changeStudentPassword } from '../auth.js';
+import { schoolChip } from '../schools.js';
 
 export function mount(root, [uidParam]) {
   const uid = uidParam || session.uid;
@@ -33,7 +34,7 @@ export function mount(root, [uidParam]) {
             h('span', { class: 'pc-tier' }, s.ranked ? s.tier.name : `배치고사 ${s.games}/${s.games + s.placementLeft}`),
             st.n >= 2 ? h('span', { class: `streak ${st.win ? '' : 'lose'}` }, st.win ? `🔥 ${st.n}연승` : `${st.n}연패`) : null,
           ),
-          h('div', { class: 'pc-name' }, mine ? `${s.name} (나)` : s.name),
+          h('div', { class: 'pc-name' }, mine ? `${s.name} (나)` : s.name, schoolChip(s.uid)),
           h('div', { class: 'stat-tiles' },
             stat('점수', s.rating),
             s.ranked ? stat('순위', `${s.rank + 1}등`) : null,

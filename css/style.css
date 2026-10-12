@@ -623,6 +623,32 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .is-closed .bc-state { color: var(--ink-2); }
 .bc-desc { color: var(--muted); font-weight: 700; }
 .bc-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+/* 여러 학교: 이름 옆 학교 표시 (배너 색: 첫 학교 파랑, 둘째 학교 노랑) */
+.school-chip {
+  display: inline-flex; align-items: center; flex: none; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
+  font-family: var(--font); font-size: 12px; font-weight: 800; line-height: 1.6; vertical-align: middle; white-space: nowrap;
+}
+.school-chip.sc-0 { background: #e3ebff; color: #2541b8; }
+.school-chip.sc-1 { background: #fff1c2; color: #8a5a00; }
+.school-chip.sc-2 { background: #dcf7e8; color: #0b7745; }
+.school-chip.sc-3 { background: #ffe3ec; color: #a1234f; }
+.invite-text .school-chip { margin: 0 6px 0 0; }
+.rank-who { display: flex; align-items: center; min-width: 0; }
+.rank-who .rank-name { min-width: 0; }
+.name-with-school { display: inline-flex; align-items: center; }
+.bc-others { font-size: 13px; font-weight: 700; color: var(--muted); }
+.inline-select { width: auto; min-width: 120px; }
+.school-pick { display: flex; gap: 8px; flex-wrap: wrap; }
+.school-pick-btn {
+  flex: 1 1 0; min-width: 110px; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--line); background: #fff;
+  font: inherit; font-size: 17px; font-weight: 800; color: var(--ink-2); cursor: pointer; transition: all 0.15s;
+}
+.school-pick-btn.sc-0.on { border-color: #4c6fff; background: #eef2ff; color: #2541b8; box-shadow: 0 0 0 3px rgba(76, 111, 255, 0.18); }
+.school-pick-btn.sc-1.on { border-color: #f5b400; background: #fff7d6; color: #8a5a00; box-shadow: 0 0 0 3px rgba(245, 180, 0, 0.22); }
+.school-pick-btn.sc-2.on { border-color: #1fbf75; background: #e9fbf2; color: #0b7745; }
+.school-pick-btn.sc-3.on { border-color: #f2475a; background: #fff1f3; color: #a1234f; }
+.school-pick-btn:not(.on):hover { border-color: #c9d2ee; }
+
 /* 대결 찾기 (자동 매칭) */
 .match-card { display: flex; flex-direction: column; gap: 12px; }
 .match-card.is-searching { border: 2px solid #c9d6ff; background: linear-gradient(135deg, #eef3ff, #fff); }

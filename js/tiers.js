@@ -83,8 +83,10 @@ export function winsRanking(list) {
 // - 아직 짝이 없고, 티어 조건(canMatch)이 맞고, isOk(접속 중 등)인 친구
 // - 나보다 늦게 들어온 친구에게만 내가 먼저 짝을 걸어요. 오래 기다린 사람이 먼저 고르고,
 //   두 사람이 동시에 서로를 잡으려다 둘 다 실패하는 일도 막아요.
-// - 바로 전에 만난 상대는 다른 후보가 있으면 피하고, 남은 후보 중에서 무작위로 고릅니다.
-export function pickOpponent(me, queue, byUid, settings = DEFAULT_SETTINGS, rnd = Math.random, isOk = () => true) {
+// - 바로 전에 만난 상대는 다른 후보가 있으면 피하고,
+// - (여러 학교일 때) 남은 후보 중 다른 학교 친구가 있으면 그 친구들 중에서,
+// - 그중에서 무작위로 고릅니다.
+export function pickOpponent(me, queue, byUid, settings = DEFAULT_SETTINGS, rnd = Math.random, isOk = () => true, schoolOf = null) {
   const mine = queue?.[me];
   if (!mine || mine.match) return null;
   const waitedLonger = (a, ua, b, ub) => a.at < b.at || (a.at === b.at && ua < ub);
@@ -94,6 +96,10 @@ export function pickOpponent(me, queue, byUid, settings = DEFAULT_SETTINGS, rnd 
   if (!cands.length) return null;
   const fresh = cands.filter((uid) => uid !== mine.last && queue[uid].last !== me);
   if (fresh.length) cands = fresh;
+  if (schoolOf) {
+    const other = cands.filter((uid) => schoolOf(uid) !== schoolOf(me));
+    if (other.length) cands = other;
+  }
   return cands[Math.min(cands.length - 1, Math.floor(rnd() * cands.length))];
 }
 

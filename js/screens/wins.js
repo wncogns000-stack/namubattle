@@ -4,6 +4,7 @@ import { h, avatar, tierBadge, tierEmblem } from '../ui.js';
 import { store, subscribe, isOnline } from '../store.js';
 import { winsRanking } from '../tiers.js';
 import { session } from '../session.js';
+import { schoolChip, schoolList } from '../schools.js';
 
 // 티어 랭킹 ↔ 승수 랭킹 전환 (랭킹 화면과 함께 씀)
 export function rankSwitch(active) {
@@ -22,6 +23,7 @@ export function mount(root) {
       avatar(s.name, s.uid, isOnline(s.uid) ? 'lobby' : null),
       h('span', { class: 'wins-who' },
         h('a', { class: 'rank-name', href: `#/history/${s.uid}` }, s.name),
+        schoolChip(s.uid),
         tierBadge(s, { size: 18 }),
       ),
       h('span', { class: 'wins-count' }, s.wins, h('small', null, '승')),
@@ -48,7 +50,7 @@ export function mount(root) {
   function render() {
     const list = winsRanking(store.standings.list);
     // 내용이 그대로면 다시 그리지 않음 (이름을 누르려던 순간 화면이 바뀌지 않도록)
-    const key = JSON.stringify([list.map((s) => [s.uid, s.name, s.wins, s.games, s.tier.id, s.placementLeft, isOnline(s.uid)]), session.uid]);
+    const key = JSON.stringify([list.map((s) => [s.uid, s.name, s.wins, s.games, s.tier.id, s.placementLeft, isOnline(s.uid)]), session.uid, schoolList()]);
     if (key === lastKey) return;
     lastKey = key;
     box.innerHTML = '';
