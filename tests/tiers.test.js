@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TIERS } from '../js/config.js';
-import { computeStandings, eloDelta, canMatch, levelForMatch, tierIndexForPosition, streakOf, byOpponent, formatWinRate, isBattleOpen, winsRanking, pickOpponent } from '../js/tiers.js';
+import { computeStandings, eloDelta, canMatch, levelForMatch, tierIndexForPosition, streakOf, byOpponent, formatWinRate, isBattleOpen, winsRanking, pickOpponent, buildSeasonSnapshot, standingsFromSnapshot, inSeasonRange } from '../js/tiers.js';
 
 test('티어 인원 합계는 25명', () => {
   assert.equal(TIERS.reduce((s, t) => s + t.quota, 0), 25);
@@ -177,6 +177,49 @@ test('자동 매칭: 여러 학교면 되도록 다른 학교 친구와', () => 
   const seen2 = new Set();
   for (let i = 0; i < 200; i++) seen2.add(pickOpponent('u10', q, byUid, S));
   assert.ok(seen2.has('u12'));
+});
+
+test('시즌 마칠 때 보관하는 기록', () => {
+  const users = {};
+  for (let i = 0; i < 25; i++) users['u' + String(i).padStart(2, '0')] = { name: '학생' + i, no: i + 1, rating: 1500 - i * 10, wins: 3 + (i % 4), losses: 2, ...(i === 3 ? { school: 'sB' } : {}) };
+  users.newbie = { name: '새친구', wins: 1, losses: 0 };   // 배치고사 미완료
+  users.idle = { name: '쉰친구', wins: 0, losses: 0 };     // 한 판도 안 함 → 보관 안 함
+  const before = JSON.stringify(users);
+  const settings = { placementGames: 3 };
+  const snap = buildSeasonSnapshot(users, settings, 1, null, 5000);
+  assert.equal(JSON.stringify(users), before); // 원래 데이터는 그대로
+  assert.equal(snap.n, 1);
+  assert.equal(snap.endedAt, 5000);
+  assert.ok(!snap.players.idle, '한 판도 안 한 학생은 빼요');
+  const { list, byUid } = computeStandings(users, settings);
+  const wr = Object.fromEntries(winsRanking(list).map((s) => [s.uid, s.winRank]));
+  for (const s of list) {
+    if (!s.wins && !s.losses) continue;
+    const p = snap.players[s.uid];
+    assert.equal(p.rating, s.rating); assert.equal(p.wins, s.wins); assert.equal(p.losses, s.losses);
+    assert.equal(p.ranked, s.ranked); assert.equal(p.rank, s.ranked ? s.rank : null); assert.equal(p.tier, s.ranked ? s.tier.id : null);
+    assert.equal(p.winRank, wr[s.uid]);
+  }
+  assert.equal(snap.players.u03.school, 'sB');
+  assert.equal(snap.players.newbie.ranked, false);
+  // 보관 기록 → 랭킹 모양으로 되살리면 등수·티어가 같음
+  const back = standingsFromSnapshot(JSON.parse(JSON.stringify(snap)));
+  assert.equal(back.rankedCount, 25);
+  for (const s of back.list) {
+    if (!s.ranked) continue;
+    assert.equal(s.rank, byUid[s.uid].rank); assert.equal(s.tier.id, byUid[s.uid].tier.id);
+  }
+  assert.equal(back.list[0].uid, 'u00');
+  assert.equal(back.byUid.newbie.tier.id, 'unranked');
+  assert.deepEqual(winsRanking(back.list).map((s) => [s.uid, s.winRank]).filter(([u]) => wr[u] !== undefined).every(([u, r]) => r === wr[u]), true);
+});
+
+test('대결 기록을 시즌으로 나누기', () => {
+  assert.equal(inSeasonRange(100, { startedAt: null, endedAt: 500 }), true);   // 시즌 1 (처음부터)
+  assert.equal(inSeasonRange(500, { startedAt: null, endedAt: 500 }), false);  // 마친 순간부터는 다음 시즌
+  assert.equal(inSeasonRange(500, { startedAt: 500, endedAt: null }), true);   // 지금 시즌
+  assert.equal(inSeasonRange(499, { startedAt: 500, endedAt: null }), false);
+  assert.equal(inSeasonRange(1, null), false);
 });
 
 test('version.json과 앱 버전이 같다 (올릴 때 둘 다 바꿨는지 확인)', async () => {

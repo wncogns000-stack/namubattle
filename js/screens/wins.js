@@ -1,30 +1,35 @@
-// 승수 랭킹 (로그인하지 않아도 볼 수 있음)
+// 승수 랭킹 (로그인하지 않아도 볼 수 있음). #/wins = 지금 시즌, #/wins/s1 = 마친 시즌
 // 티어·점수와 상관없이 이긴 횟수만으로 줄 세웁니다. 데이터는 읽기만 하고 아무것도 바꾸지 않아요.
 import { h, avatar, tierBadge, tierEmblem } from '../ui.js';
 import { store, subscribe, isOnline } from '../store.js';
 import { winsRanking } from '../tiers.js';
 import { session } from '../session.js';
 import { schoolChip, schoolList } from '../schools.js';
+import { currentSeason, pastSeasons, parseSeasonParam, seasonStandings, seasonPeriodText, seasonPicker, seasonBadge, seasonKey } from '../seasons.js';
 
-// 티어 랭킹 ↔ 승수 랭킹 전환 (랭킹 화면과 함께 씀)
-export function rankSwitch(active) {
-  const tab = (hash, label, key) => h('a', { href: hash, class: `rank-switch-tab ${active === key ? 'on' : ''}` }, label);
+// 티어 랭킹 ↔ 승수 랭킹 전환 (랭킹 화면과 함께 씀). season: 보고 있는 지난 시즌 번호
+export function rankSwitch(active, season) {
+  const suffix = season ? `/${seasonKey(season)}` : '';
+  const tab = (hash, label, key) => h('a', { href: hash + suffix, class: `rank-switch-tab ${active === key ? 'on' : ''}` }, label);
   return h('nav', { class: 'rank-switch' }, tab('#/ranking', '🏆 티어 랭킹', 'ranking'), tab('#/wins', '🏅 승수 랭킹', 'wins'));
 }
 
-export function mount(root) {
+export function mount(root, [seasonParam] = []) {
   const box = h('div', { class: 'page ranking-page wins-page' });
   root.appendChild(box);
+  let past = null; // 보고 있는 지난 시즌
+  const histLink = (uid) => (past ? `#/history/${uid}/${seasonKey(past)}` : `#/history/${uid}`);
 
   function row(s) {
     const top = s.wins > 0 && s.winRank < 3 ? ` top${s.winRank + 1}` : '';
     return h('li', { class: `wins-row${top} ${s.uid === session.uid ? 'me' : ''}` },
       h('span', { class: 'wins-no' }, `${s.winRank + 1}`),
-      avatar(s.name, s.uid, isOnline(s.uid) ? 'lobby' : null),
+      avatar(s.name, s.uid, !past && isOnline(s.uid) ? 'lobby' : null),
       h('span', { class: 'wins-who' },
-        h('a', { class: 'rank-name', href: `#/history/${s.uid}` }, s.name),
-        schoolChip(s.uid),
+        h('a', { class: 'rank-name', href: histLink(s.uid) }, s.name),
+        past ? schoolChip(null, { sid: s.school || 'main' }) : schoolChip(s.uid),
         tierBadge(s, { size: 18 }),
+        past ? null : seasonBadge(s.uid),
       ),
       h('span', { class: 'wins-count' }, s.wins, h('small', null, '승')),
       h('span', { class: 'wins-games' }, `${s.games}판 참여`),
@@ -37,7 +42,7 @@ export function mount(root) {
     if (winners.length < 3 || (winners[3] && winners[3].wins === winners[2].wins)) return null;
     const top = winners.slice(0, 3);
     // 단상 색·높이는 실제 등수로 (승수가 같으면 같은 높이)
-    const spot = (s) => h('a', { class: `podium-spot p${s.winRank + 1}`, href: `#/history/${s.uid}` },
+    const spot = (s) => h('a', { class: `podium-spot p${s.winRank + 1}`, href: histLink(s.uid) },
       tierEmblem(s.tier, s.winRank === 0 ? 64 : 50),
       h('span', { class: 'podium-name' }, s.name),
       h('span', { class: 'podium-rating' }, `${s.wins}승`),
@@ -48,21 +53,27 @@ export function mount(root) {
 
   let lastKey = '';
   function render() {
-    const list = winsRanking(store.standings.list);
+    past = parseSeasonParam(seasonParam);
+    const list = winsRanking(past ? seasonStandings(past).list : store.standings.list);
     // 내용이 그대로면 다시 그리지 않음 (이름을 누르려던 순간 화면이 바뀌지 않도록)
-    const key = JSON.stringify([list.map((s) => [s.uid, s.name, s.wins, s.games, s.tier.id, s.placementLeft, isOnline(s.uid)]), session.uid, schoolList()]);
+    const key = JSON.stringify([past, list.map((s) => [s.uid, s.name, s.wins, s.games, s.tier.id, s.placementLeft, !past && isOnline(s.uid)]), session.uid, schoolList(), currentSeason(), pastSeasons()]);
     if (key === lastKey) return;
     lastKey = key;
     box.innerHTML = '';
     const totalGames = list.reduce((sum, s) => sum + s.wins, 0);
+    const cur = currentSeason();
     box.append(
-      rankSwitch('wins'),
-      h('section', { class: 'card rank-hero' },
-        h('h2', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🏅'), '승수 랭킹'),
-        h('p', { class: 'muted', style: { margin: '0' } }, '티어나 점수와 상관없이 이긴 횟수만 세요. 어느 티어에서든 꾸준히 대결하면 올라갈 수 있어요!'),
-        totalGames ? h('div', { class: 'live-strip' }, `⚔️ 지금까지 끝난 대결 ${totalGames}판`) : null,
+      rankSwitch('wins', past),
+      seasonPicker('#/wins', past || cur) || '',
+      h('section', { class: `card rank-hero ${past ? 'past-season' : ''}` },
+        h('h2', { class: 'card-title' }, h('span', { class: 'title-icon' }, past ? '🏁' : '🏅'),
+          past ? `시즌 ${past} 최종 승수 랭킹` : `승수 랭킹${pastSeasons().length ? ` · 시즌 ${cur}` : ''}`),
+        h('p', { class: 'muted', style: { margin: '0' } }, past
+          ? `${seasonPeriodText(past)} · 시즌을 마칠 때의 기록이에요.`
+          : '티어나 점수와 상관없이 이긴 횟수만 세요. 어느 티어에서든 꾸준히 대결하면 올라갈 수 있어요!'),
+        totalGames ? h('div', { class: 'live-strip' }, `⚔️ ${past ? `시즌 ${past}에 끝난 대결` : (pastSeasons().length ? `시즌 ${cur}에 끝난 대결` : '지금까지 끝난 대결')} ${totalGames}판`) : null,
         podium(list),
-        !list.length ? h('p', { class: 'empty' }, '아직 등록된 학생이 없어요.') : null,
+        !list.length ? h('p', { class: 'empty' }, past ? '이 시즌에는 대결 기록이 없어요.' : '아직 등록된 학생이 없어요.') : null,
       ),
     );
     if (list.length) box.append(h('section', { class: 'card' }, h('ul', { class: 'rank-list' }, list.map(row))));

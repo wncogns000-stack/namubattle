@@ -7,6 +7,7 @@ import { puzzleCard, heightGrid } from '../views2d.js';
 import { Builder3D } from '../builder3d.js';
 import { play, playBuild } from '../sound.js';
 import { schoolChip } from '../schools.js';
+import { seasonBadge } from '../seasons.js';
 import { session, setPresenceState, leaveFinishedGame } from '../session.js';
 import { challenge, lockInfo, opponentOf, cancelGame } from '../match.js';
 
@@ -95,14 +96,14 @@ export function mount(root, [gid]) {
         h('div', { class: 'vs-player me' },
           avatar(g.players[me], me),
           h('div', { class: 'vs-info' },
-            h('div', { class: 'vs-name' }, g.players[me], h('span', { class: 'vs-you' }, '나'), schoolChip(me)),
+            h('div', { class: 'vs-name' }, g.players[me], h('span', { class: 'vs-you' }, '나'), schoolChip(me), seasonBadge(me)),
             sMe ? tierBadge(sMe, { size: 22 }) : null,
           ),
         ),
         h('div', { class: 'vs-mid' }, h('span', { class: 'vs' }, 'VS'), h('span', { class: 'level-tag' }, LEVELS[p.level]?.name || ''), els.timer),
         h('div', { class: 'vs-player opp' },
           h('div', { class: 'vs-info' },
-            h('div', { class: 'vs-name' }, g.players[opp] || '상대', schoolChip(opp)),
+            h('div', { class: 'vs-name' }, g.players[opp] || '상대', schoolChip(opp), seasonBadge(opp)),
             sOpp ? tierBadge(sOpp, { size: 22 }) : null,
           ),
           avatar(g.players[opp] || '상대', opp),

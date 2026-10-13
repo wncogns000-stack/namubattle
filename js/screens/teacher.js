@@ -3,7 +3,8 @@ import { h, toast, confirmBox, promptBox, tierBadge, fmtDuration, fmtTime } from
 import { db } from '../db.js';
 import { store, subscribe, isOnline, battleOpen, battleOf, schoolOf } from '../store.js';
 import { DEFAULT_SETTINGS, LEVELS, START_RATING, TIERS } from '../config.js';
-import { formatWinRate } from '../tiers.js';
+import { formatWinRate, buildSeasonSnapshot } from '../tiers.js';
+import { currentSeason, pastSeasons, seasonData, seasonKey, seasonPeriodText, seasonStandings } from '../seasons.js';
 import { teacherExists, setupTeacher, loginTeacher, isTeacher, logoutTeacher, makeSecret, normalizeName, checkSecret, teacherSchool, isMainTeacher, teacherPath } from '../auth.js';
 import { MAIN, schoolList, multiSchool, schoolName, schoolChip, battlePath } from '../schools.js';
 import { cancelGame } from '../match.js';
@@ -78,10 +79,12 @@ export function mount(root) {
       ['live', '진행 중인 대결'],
       ['settings', '게임 설정'],
       ['schools', '학교'],
+      ['season', '시즌'],
       ['reset', '초기화·체험'],
     ] : [
       ['students', '학생 관리'],
       ['live', '진행 중인 대결'],
+      ['season', '시즌'],
       ['account', '비밀번호'],
     ];
     if (!tabs.some(([k]) => k === tab)) tab = 'students';
@@ -114,7 +117,7 @@ export function mount(root) {
     drawBattle();
     const draw = () => {
       content.innerHTML = '';
-      ({ students: drawStudents, live: drawLive, settings: drawSettings, schools: drawSchools, reset: drawReset, account: drawAccount })[tab](content);
+      ({ students: drawStudents, live: drawLive, settings: drawSettings, schools: drawSchools, season: drawSeason, reset: drawReset, account: drawAccount })[tab](content);
     };
     draw();
     let lastOnline = '';
@@ -463,6 +466,113 @@ export function mount(root) {
     renderMain();
   }
 
+  // ───────── 시즌 ─────────
+  function drawSeason(el) {
+    const cur = currentSeason();
+    const past = pastSeasons();
+    const liveCount = Object.keys(store.live || {}).length;
+    const newSeasonUntouched = Object.values(store.users).every((u) => !(u.wins || u.losses));
+    const lastN = cur - 1;
+    el.append(
+      h('section', { class: 'card' },
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🏁'), `지금은 시즌 ${cur}`),
+        h('p', { class: 'muted small' }, `${seasonPeriodText(cur)}. 시즌을 마치면 그때의 최종 기록(티어·순위·승패·승수 순위)을 보관하고 다음 시즌을 새로 시작해요. 새 시즌에는 ${multiSchool() ? '모든 학교 ' : ''}학생이 1000점, 0승 0패에서 배치고사부터 다시 해요. 대결 기록은 지우지 않고 시즌별로 볼 수 있어요.`),
+        admin ? h('div', { class: 'row-gap' },
+          h('button', { class: 'btn btn-primary', disabled: liveCount > 0, onclick: endSeason }, `🏁 시즌 ${cur} 마치고 시즌 ${cur + 1} 시작`),
+          liveCount ? h('span', { class: 'muted small' }, `진행 중인 대결 ${liveCount}개가 끝나야 시즌을 마칠 수 있어요.`) : null,
+        ) : h('p', { class: 'muted small' }, `시즌을 마치는 것은 ${schoolName(MAIN)} 선생님이 해요.`),
+        admin && lastN >= 1 && seasonData(lastN) && newSeasonUntouched ? h('div', { class: 'row-gap' },
+          h('button', { class: 'btn', onclick: undoSeason }, `↩️ 시즌 ${lastN} 마치기 되돌리기`),
+          h('span', { class: 'muted small' }, `시즌 ${cur}에서 아직 아무도 대결하지 않았을 때만 되돌릴 수 있어요.`),
+        ) : null,
+      ),
+      h('section', { class: 'card' },
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '📚'), '지난 시즌 기록'),
+        past.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
+          h('thead', null, h('tr', null, ['시즌', '기간', '참가', ''].map((t) => h('th', null, t)))),
+          h('tbody', null, past.map((n) => h('tr', null,
+            h('td', null, h('b', null, `시즌 ${n}`)),
+            h('td', null, seasonPeriodText(n)),
+            h('td', null, `${Object.keys(seasonData(n)?.players || {}).filter((u) => admin || seasonPlayerSchool(n, u) === tsid).length}명`),
+            h('td', { class: 'actions' },
+              h('a', { class: 'btn btn-small', href: `#/ranking/${seasonKey(n)}` }, '🏆 최종 랭킹 보기'),
+              h('button', { class: 'btn btn-small', onclick: () => exportSeasonCsv(n) }, '📥 CSV'),
+            ),
+          ))),
+        )) : h('p', { class: 'empty' }, '아직 마친 시즌이 없어요.'),
+      ),
+    );
+  }
+
+  function seasonPlayerSchool(n, uid) {
+    return seasonData(n)?.players?.[uid]?.school || MAIN;
+  }
+
+  async function endSeason() {
+    const n = currentSeason();
+    if (Object.keys(store.live || {}).length) return toast('진행 중인 대결이 끝난 뒤에 시즌을 마칠 수 있어요.', 'warn');
+    const v = await promptBox(`시즌 ${n} 마치기`, [{ name: 'word', label: `확인을 위해 "시즌${n}"이라고 입력하세요` }], '시즌 마치기',
+      `시즌 ${n} 최종 기록을 보관하고 시즌 ${n + 1}을 시작해요. ${multiSchool() ? '모든 학교 ' : ''}학생의 점수가 1000점, 0승 0패가 되고 배치고사부터 다시 해요. 대결 기록은 지워지지 않아요. ${multiSchool() ? '모든 학교의 ' : ''}대결은 닫혀요.`);
+    if (!v || String(v.word).replace(/\s/g, '') !== `시즌${n}`) return;
+    const now = db.now();
+    const snap = buildSeasonSnapshot(store.users, store.settings, n, store.season?.startedAt || null, now);
+    const up = {
+      [`seasons/${seasonKey(n)}`]: snap,
+      'config/season': { current: n + 1, startedAt: now },
+      builds: null, live: null, active: null, invites: null, queue: null,
+    };
+    for (const uid of Object.keys(store.users)) {
+      up[`users/${uid}/rating`] = START_RATING;
+      up[`users/${uid}/wins`] = 0;
+      up[`users/${uid}/losses`] = 0;
+    }
+    for (const sc of schoolList()) up[battlePath(sc.id)] = { open: false, at: now };
+    await db.update('', up);
+    toast(`시즌 ${n} 기록을 보관하고 시즌 ${n + 1}을 시작했어요.`, 'ok', 4000);
+    renderMain();
+  }
+
+  async function undoSeason() {
+    const n = currentSeason() - 1;
+    const snap = seasonData(n);
+    if (!snap) return;
+    if (!Object.values(store.users).every((u) => !(u.wins || u.losses))) return toast(`시즌 ${n + 1}에서 이미 대결한 학생이 있어서 되돌릴 수 없어요.`, 'warn');
+    if (!(await confirmBox('시즌 마치기 되돌리기', `시즌 ${n + 1}을 없애고 시즌 ${n}의 점수·승패로 되돌릴까요?`, '되돌리기', 'danger'))) return;
+    const up = {
+      [`seasons/${seasonKey(n)}`]: null,
+      'config/season': n === 1 && !snap.startedAt ? null : { current: n, startedAt: snap.startedAt || null },
+    };
+    for (const [uid, p] of Object.entries(snap.players || {})) {
+      if (!store.users[uid]) continue;
+      up[`users/${uid}/rating`] = p.rating;
+      up[`users/${uid}/wins`] = p.wins || 0;
+      up[`users/${uid}/losses`] = p.losses || 0;
+    }
+    await db.update('', up);
+    toast(`시즌 ${n}으로 되돌렸어요.`, 'ok');
+    renderMain();
+  }
+
+  // 지난 시즌 최종 기록 CSV (다른 학교 선생님은 자기 학교 학생만)
+  function exportSeasonCsv(n) {
+    const st = seasonStandings(n);
+    if (!st) return;
+    const multi = multiSchool();
+    const rows = [['번호', '이름', ...(multi && admin ? ['학교'] : []), '티어', '티어 순위', '점수', '승', '패', '승률', '승수 순위']];
+    const winRankOf = Object.fromEntries(Object.entries(seasonData(n).players || {}).map(([u, p]) => [u, p.winRank]));
+    for (const s of st.list) {
+      const sid = s.school || MAIN;
+      if (!admin && sid !== tsid) continue;
+      rows.push([s.no ?? '', s.name, ...(multi && admin ? [schoolName(sid)] : []), s.ranked ? s.tier.name : '배치고사 미완료', s.ranked ? s.rank + 1 : '',
+        s.rating, s.wins, s.losses, formatWinRate(s.wins, s.losses), winRankOf[s.uid] != null ? winRankOf[s.uid] + 1 : '']);
+    }
+    const csv = '\ufeff' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const a = h('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `쌓기나무배틀_시즌${n}${multi && !admin ? '_' + schoolName(tsid) : ''}.csv` });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
   // ───────── 비밀번호 (다른 학교 선생님) ─────────
   function drawAccount(el) {
     el.append(h('section', { class: 'card' },
@@ -528,7 +638,7 @@ export function mount(root) {
   }
 
   async function seasonReset() {
-    if (!(await typedConfirm('점수·전적 초기화', `${multiSchool() ? '모든 학교의 ' : ''}모든 학생의 점수가 1000점, 0승 0패로 돌아가고 전적이 지워져요.`))) return;
+    if (!(await typedConfirm('점수·전적 초기화', `${multiSchool() ? '모든 학교의 ' : ''}모든 학생의 점수가 1000점, 0승 0패로 돌아가고 전적이 지워져요. (지난 시즌 기록 보관함은 그대로예요. 기록을 남기고 새로 시작하려면 '시즌' 탭의 시즌 마치기를 쓰세요.)`))) return;
     const up = { history: null, games: null, builds: null, live: null, active: null, invites: null, queue: null };
     for (const uid of Object.keys(store.users)) {
       up[`users/${uid}/rating`] = START_RATING;
@@ -540,10 +650,11 @@ export function mount(root) {
   }
 
   async function wipeAll() {
-    if (!(await typedConfirm('모든 데이터 지우기', `${multiSchool() ? '모든 학교의 ' : ''}학생 계정, 점수, 전적이 모두 지워져요. (학교 목록과 선생님 비밀번호는 남아요)`))) return;
+    if (!(await typedConfirm('모든 데이터 지우기', `${multiSchool() ? '모든 학교의 ' : ''}학생 계정, 점수, 전적, 지난 시즌 기록이 모두 지워져요. (학교 목록과 선생님 비밀번호는 남아요)`))) return;
     await db.update('', {
       users: null, secrets: null, history: null, games: null, builds: null, live: null,
       active: null, invites: null, presence: null, queue: null, 'config/settings': null, 'config/battle': null, 'config/battles': null, keys: null,
+      seasons: null, 'config/season': null,
     });
     toast('모두 지웠어요.', 'ok');
   }

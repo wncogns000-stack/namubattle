@@ -9,11 +9,13 @@ export const store = {
   presence: {},
   live: {},
   battles: {}, // 학교별 대결 시간 { 학교: { open, until } } (기본 학교 main은 config/battle, 다른 학교는 config/battles/학교)
+  season: {}, // 지금 시즌 { current, startedAt } (없으면 시즌 1)
+  seasons: {}, // 마친 시즌의 최종 기록 { 번호: { startedAt, endedAt, players } }
   schools: {}, // 함께 하는 학교 { 학교: { name, createdAt } } — 학교 정보가 없는 학생은 기본 학교(main)
   queue: {}, // 자동 매칭 대기열 { uid: { at, name, last, match, ready } }
   standings: computeStandings({}),
   me: null,
-  loaded: { users: false, settings: false, battle: false, schools: false },
+  loaded: { users: false, settings: false, battle: false, schools: false, season: false, seasons: false },
 };
 
 const subs = new Set();
@@ -62,6 +64,16 @@ export function startStore() {
   db.on('queue', (v) => {
     store.queue = v || {};
     emit('queue');
+  });
+  db.on('config/season', (v) => {
+    store.season = v || {};
+    store.loaded.season = true;
+    emit('season');
+  });
+  db.on('seasons', (v) => {
+    store.seasons = v || {};
+    store.loaded.seasons = true;
+    emit('seasons');
   });
   db.on('schools', (v) => {
     store.schools = v || {};
@@ -130,10 +142,11 @@ export function standingOf(uid) {
 
 // 데이터가 처음 도착할 때까지 기다리기
 export function whenLoaded() {
-  if (store.loaded.users && store.loaded.settings && store.loaded.schools) return Promise.resolve();
+  const ready = () => store.loaded.users && store.loaded.settings && store.loaded.schools && store.loaded.season && store.loaded.seasons;
+  if (ready()) return Promise.resolve();
   return new Promise((resolve) => {
     const off = subscribe(() => {
-      if (store.loaded.users && store.loaded.settings && store.loaded.schools) {
+      if (ready()) {
         off();
         resolve();
       }

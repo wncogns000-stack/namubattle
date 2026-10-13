@@ -2,6 +2,7 @@ import { h, tierBadge, tierEmblem, toast, avatar, fmtTime, fmtClock } from '../u
 import { db } from '../db.js';
 import { store, subscribe, isOnline, presenceState, myStanding, battleOpen, battleOf } from '../store.js';
 import { schoolChip, schoolList } from '../schools.js';
+import { currentSeason, pastSeasons, filterSeason, seasonBadge } from '../seasons.js';
 import { TIERS } from '../config.js';
 import { canMatch, formatWinRate, streakOf } from '../tiers.js';
 import { session, sendInvite, setPresenceState } from '../session.js';
@@ -55,18 +56,19 @@ export function mount(root) {
 
   function renderProfile() {
     const me = myStanding();
-    const st = streakOf(history);
-    if (!changed(profileBox, [me, st, store.standings.rankedCount, store.settings.tierGap, schoolList()])) return;
+    const st = streakOf(filterSeason(history)); // 연승·연패는 지금 시즌 대결만
+    if (!changed(profileBox, [me, st, store.standings.rankedCount, store.settings.tierGap, schoolList(), currentSeason(), pastSeasons()])) return;
     profileBox.innerHTML = '';
     if (!me) return;
     profileBox.appendChild(h('section', { class: `card player-card tier-bg-${me.tier.id}` },
       h('div', { class: 'pc-emblem' }, tierEmblem(me.tier, 104)),
       h('div', { class: 'pc-main' },
         h('div', { class: 'row-gap' },
+          pastSeasons().length ? h('span', { class: 'pc-season' }, `시즌 ${currentSeason()}`) : null,
           h('span', { class: 'pc-tier' }, me.ranked ? me.tier.name : `배치고사 ${me.games}/${me.games + me.placementLeft}`),
           st.n >= 2 ? h('span', { class: `streak ${st.win ? '' : 'lose'}` }, st.win ? `🔥 ${st.n}연승 중` : `${st.n}연패… 힘내요!`) : null,
         ),
-        h('div', { class: 'pc-name' }, me.name, schoolChip(me.uid)),
+        h('div', { class: 'pc-name' }, me.name, schoolChip(me.uid), seasonBadge(me.uid, { size: 20 })),
         h('div', { class: 'stat-tiles' },
           stat('점수', me.rating),
           me.ranked ? stat('순위', `${me.rank + 1}등`, `/${store.standings.rankedCount}`) : null,
@@ -152,7 +154,7 @@ export function mount(root) {
     const open = battleOpen();
     const direct = !!store.settings.directInvite; // 선생님이 켰을 때만 직접 신청
     const searching = (uid) => !!store.queue?.[uid];
-    if (!changed(listBox, [me, others, others.map((s) => [presenceState(s.uid), searching(s.uid)]), store.settings, session.outgoing?.to, !!session.activeGame, open, schoolList()])) return;
+    if (!changed(listBox, [me, others, others.map((s) => [presenceState(s.uid), searching(s.uid)]), store.settings, session.outgoing?.to, !!session.activeGame, open, schoolList(), pastSeasons()])) return;
     listBox.innerHTML = '';
     if (!others.length) {
       listBox.appendChild(h('p', { class: 'empty' }, '아직 접속한 친구가 없어요. 친구들이 들어오면 여기에 보여요.'));
@@ -182,6 +184,7 @@ export function mount(root) {
           h('div', { class: 'pr-top' },
             h('span', { class: 'player-name' }, s.name),
             schoolChip(s.uid),
+            seasonBadge(s.uid),
             searching(s.uid) && !busy ? h('span', { class: 'status-chip state-search' }, '🔎 대결 찾는 중')
               : h('span', { class: `status-chip state-${state}` }, STATE_LABEL[state] || ''),
           ),

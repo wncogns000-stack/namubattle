@@ -103,6 +103,53 @@ export function pickOpponent(me, queue, byUid, settings = DEFAULT_SETTINGS, rnd 
   return cands[Math.min(cands.length - 1, Math.floor(rnd() * cands.length))];
 }
 
+// ───────── 시즌 ─────────
+// 시즌을 마칠 때 보관할 최종 기록. 그 시즌에 한 판이라도 한 학생만 남겨요.
+// players[uid] = { name, no, school, rating, wins, losses, ranked, rank(0부터), tier(티어 id), winRank(0부터) }
+export function buildSeasonSnapshot(users, settings, n, startedAt, endedAt) {
+  const { list } = computeStandings(users, settings);
+  const winRankOf = Object.fromEntries(winsRanking(list).map((s) => [s.uid, s.winRank]));
+  const players = {};
+  for (const s of list) {
+    if (!s.wins && !s.losses) continue;
+    players[s.uid] = {
+      name: s.name, no: s.no ?? null, school: users[s.uid]?.school || null,
+      rating: s.rating, wins: s.wins, losses: s.losses,
+      ranked: s.ranked, rank: s.ranked ? s.rank : null, tier: s.ranked ? s.tier.id : null,
+      winRank: winRankOf[s.uid],
+    };
+  }
+  return { n, startedAt: startedAt || null, endedAt, placementGames: settings?.placementGames ?? DEFAULT_SETTINGS.placementGames, players };
+}
+
+// 보관한 시즌 기록 → 랭킹 화면에서 쓰는 모양 (computeStandings의 list와 같은 모양)
+export function standingsFromSnapshot(snap) {
+  const placement = snap?.placementGames ?? DEFAULT_SETTINGS.placementGames;
+  const list = Object.entries(snap?.players || {}).map(([uid, p]) => {
+    const wins = p.wins || 0, losses = p.losses || 0;
+    const tierIndex = p.ranked ? TIERS.findIndex((t) => t.id === p.tier) : -1;
+    return {
+      uid, name: p.name, no: p.no ?? null, school: p.school || null,
+      rating: p.rating ?? START_RATING, wins, losses, games: wins + losses,
+      ranked: !!p.ranked && tierIndex >= 0, rank: p.ranked ? p.rank : null,
+      tierIndex, tier: tierIndex >= 0 ? TIERS[tierIndex] : UNRANKED,
+      placementLeft: p.ranked ? 0 : Math.max(0, placement - wins - losses),
+    };
+  });
+  const ranked = list.filter((s) => s.ranked).sort((a, b) => a.rank - b.rank || String(a.name).localeCompare(String(b.name), 'ko'));
+  const unranked = list.filter((s) => !s.ranked).sort((a, b) => (a.no ?? 999) - (b.no ?? 999) || String(a.name).localeCompare(String(b.name), 'ko'));
+  const all = [...ranked, ...unranked];
+  return { list: all, byUid: Object.fromEntries(all.map((s) => [s.uid, s])), rankedCount: ranked.length };
+}
+
+// 대결 기록 한 줄(at)이 그 시즌에 들어가는지. range = { startedAt, endedAt } (지금 시즌은 endedAt 없음)
+export function inSeasonRange(at, range) {
+  if (!range) return false;
+  if (range.startedAt && at < range.startedAt) return false;
+  if (range.endedAt && at >= range.endedAt) return false;
+  return true;
+}
+
 // 선생님이 대결을 열어 두었는지. battle = { open, until } (until이 있으면 그 시각에 저절로 닫힘)
 export function isBattleOpen(battle, now) {
   return !!(battle && battle.open && (!battle.until || now < battle.until));

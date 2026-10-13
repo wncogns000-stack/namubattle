@@ -649,6 +649,26 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .school-pick-btn.sc-3.on { border-color: #f2475a; background: #fff1f3; color: #a1234f; }
 .school-pick-btn:not(.on):hover { border-color: #c9d2ee; }
 
+/* 시즌 */
+.season-badge {
+  display: inline-flex; align-items: center; gap: 2px; flex: none; margin-left: 6px; padding: 0 6px 0 7px; border-radius: 999px;
+  font-family: var(--font); font-size: 11px; font-weight: 900; line-height: 1.7; vertical-align: middle; white-space: nowrap;
+  background: var(--tsoft); color: var(--tc2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 35%, transparent);
+}
+.season-badge .tier-emblem { flex: none; }
+.season-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+.season-chip { padding: 6px 14px; border-radius: 999px; font-weight: 800; font-size: 14px; text-decoration: none; color: var(--ink-2); background: rgba(255, 255, 255, 0.8); box-shadow: inset 0 0 0 1px var(--line); }
+.season-chip.on { background: var(--primary); color: #fff; box-shadow: 0 6px 14px rgba(76, 111, 255, 0.25); }
+.rank-hero.past-season { border: 2px solid #f0c95a; background: linear-gradient(135deg, #fffaf0, #fff); }
+.pc-season { font-size: 12px; font-weight: 900; padding: 2px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.25); color: inherit; }
+.past-season-list { display: flex; flex-direction: column; gap: 6px; }
+.past-season-row {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 14px; border-radius: 14px; text-decoration: none; color: var(--ink);
+  background: var(--tsoft, var(--soft)); font-weight: 700;
+}
+.past-season-row:hover { box-shadow: inset 0 0 0 2px var(--line); }
+.past-tier { display: inline-flex; align-items: center; gap: 4px; color: var(--tc2, var(--ink)); font-weight: 900; }
+
 /* 대결 찾기 (자동 매칭) */
 .match-card { display: flex; flex-direction: column; gap: 12px; }
 .match-card.is-searching { border: 2px solid #c9d6ff; background: linear-gradient(135deg, #eef3ff, #fff); }
