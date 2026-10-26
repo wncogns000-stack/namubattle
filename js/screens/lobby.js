@@ -148,14 +148,32 @@ export function mount(root) {
     ));
   }
 
+  // 친구 줄의 상태(대기 중·대결 찾는 중·대결 중)는 그 자리에서 글자만 바꿈 — 45명이 동시에 대결 찾기를 눌러도 목록 전체를 다시 그리지 않도록
+  const rows = new Map(); // uid → { dot, chip, k }
+  function rowStatus(uid) {
+    const state = presenceState(uid);
+    const search = !!store.queue?.[uid] && state !== 'game';
+    return { state, cls: search ? 'state-search' : `state-${state}`, text: search ? '🔎 대결 찾는 중' : (STATE_LABEL[state] || '') };
+  }
+  function patchRows() {
+    for (const [uid, r] of rows) {
+      const st = rowStatus(uid);
+      const k = st.state + st.cls;
+      if (r.k === k) continue;
+      r.k = k;
+      if (r.dot) r.dot.className = `online-dot state-${st.state}`;
+      r.chip.className = `status-chip ${st.cls}`;
+      r.chip.textContent = st.text;
+    }
+  }
   function renderList() {
     const me = myStanding();
     const others = store.standings.list.filter((s) => s.uid !== session.uid && isOnline(s.uid));
     const open = battleOpen();
     const direct = !!store.settings.directInvite; // 선생님이 켰을 때만 직접 신청
-    const searching = (uid) => !!store.queue?.[uid];
-    if (!changed(listBox, [me, others, others.map((s) => [presenceState(s.uid), searching(s.uid)]), store.settings, session.outgoing?.to, !!session.activeGame, open, schoolList(), pastSeasons()])) return;
+    if (!changed(listBox, [me, others, direct ? others.map((s) => presenceState(s.uid) === 'game') : 0, store.settings, session.outgoing?.to, !!session.activeGame, open, schoolList(), pastSeasons()])) return patchRows();
     listBox.innerHTML = '';
+    rows.clear();
     if (!others.length) {
       listBox.appendChild(h('p', { class: 'empty' }, '아직 접속한 친구가 없어요. 친구들이 들어오면 여기에 보여요.'));
       return;
@@ -164,9 +182,9 @@ export function mount(root) {
     others.sort((a, b) => Number(canMatch(me, b, store.settings)) - Number(canMatch(me, a, store.settings)));
     const ul = h('ul', { class: 'player-list' });
     for (const s of others) {
-      const state = presenceState(s.uid);
+      const st = rowStatus(s.uid);
       const ok = canMatch(me, s, store.settings);
-      const busy = state === 'game';
+      const busy = st.state === 'game';
       const pending = session.outgoing?.to === s.uid;
       let btn = null;
       if (!direct) btn = ok ? null : h('span', { class: 'tag tag-muted' }, '티어 차이');
@@ -178,15 +196,17 @@ export function mount(root) {
         disabled: !!pending || !!session.activeGame,
         onclick: () => sendInvite(s.uid).catch((e) => toast(e.message, 'error')),
       }, pending ? '신청함' : '⚔️ 대결 신청');
+      const av = avatar(s.name, s.uid, st.state);
+      const chip = h('span', { class: `status-chip ${st.cls}` }, st.text);
+      rows.set(s.uid, { dot: av.querySelector('.online-dot'), chip, k: st.state + st.cls });
       ul.appendChild(h('li', { class: `player-row ${ok ? '' : 'dim'}` },
-        avatar(s.name, s.uid, state),
+        av,
         h('div', { class: 'pr-main' },
           h('div', { class: 'pr-top' },
             h('span', { class: 'player-name' }, s.name),
             schoolChip(s.uid),
             seasonBadge(s.uid),
-            searching(s.uid) && !busy ? h('span', { class: 'status-chip state-search' }, '🔎 대결 찾는 중')
-              : h('span', { class: `status-chip state-${state}` }, STATE_LABEL[state] || ''),
+            chip,
           ),
           h('span', { class: 'player-meta' },
             tierBadge(s, { size: 20 }),
@@ -215,10 +235,15 @@ export function mount(root) {
 
   const renderAll = () => { renderProfile(); renderMatch(); renderList(); renderLive(); };
   renderAll();
-  const off = subscribe(renderAll);
+  // 이벤트가 몰려 와도 0.3초에 한 번만 다시 그림 (대결 찾기 버튼 칸은 가벼워서 바로)
+  let soon = 0;
+  const off = subscribe(() => {
+    renderMatch();
+    if (!soon) soon = setTimeout(() => { soon = 0; renderAll(); }, 300);
+  });
   // 접속 표시가 시간이 지나면 꺼지도록 주기적으로 다시 그림
   const timer = setInterval(renderList, 10_000);
   const clock = setInterval(renderMatch, 1000); // 기다린 시간
   window.addEventListener('nb-outgoing', renderList);
-  return () => { off(); offHist(); clearInterval(timer); clearInterval(clock); window.removeEventListener('nb-outgoing', renderList); };
+  return () => { off(); clearTimeout(soon); offHist(); clearInterval(timer); clearInterval(clock); window.removeEventListener('nb-outgoing', renderList); };
 }

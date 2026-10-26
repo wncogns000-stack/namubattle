@@ -90,7 +90,7 @@ export function mount(root, [seasonParam] = []) {
     }
   }
   render();
-  const off = subscribe((_, what) => { if (what !== 'presence') render(); });
+  const off = subscribe((_, what) => { if (what !== 'presence' && what !== 'queue') render(); });
   const t = setInterval(render, 15_000);
   return () => { off(); clearInterval(t); };
 }

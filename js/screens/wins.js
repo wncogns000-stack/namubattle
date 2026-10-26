@@ -79,7 +79,7 @@ export function mount(root, [seasonParam] = []) {
     if (list.length) box.append(h('section', { class: 'card' }, h('ul', { class: 'rank-list' }, list.map(row))));
   }
   render();
-  const off = subscribe((_, what) => { if (what !== 'live' && what !== 'battle') render(); });
+  const off = subscribe((_, what) => { if (what !== 'live' && what !== 'battle' && what !== 'queue') render(); });
   const t = setInterval(render, 15_000); // 접속 표시
   return () => { off(); clearInterval(t); };
 }
