@@ -112,7 +112,7 @@ export function mount(root) {
       const now = db.now();
       const bi = battleInfo(tsid);
       const sch = scheduleOf(tsid);
-      const others = schoolList().filter((sc) => sc.id !== tsid).map((sc) => { const b = battleInfo(sc.id); return [sc.id, sc.name, b.open, b.until]; });
+      const others = schoolList().filter((sc) => sc.id !== tsid).map((sc) => { const b = battleInfo(sc.id); return [sc.id, sc.name, b.open, b.until, b.auto, b.next, kstParts(now).day]; });
       const key = JSON.stringify([bi, myLiveCount(), bi.until ? Math.ceil((bi.until - now) / 60_000) : 0, others,
         !!sch.on, sch.skip === todayKey(now), kstParts(now).day, dayText(sch, kstParts(now).day), Object.keys(sch.days || {}).length]);
       if (battleBox.dataset.key === key) return;
@@ -196,10 +196,10 @@ export function mount(root) {
       h('div', { class: 'bc-main' },
         h('span', { class: 'bc-state' }, `${multiSchool() ? schoolName(tsid) + ' ' : ''}${open ? '🔓 대결 열림' : '🔒 대결 닫힘'}`),
         h('span', { class: 'bc-desc' }, desc),
-        others.length ? h('span', { class: 'bc-others' }, others.map((sc) => {
-          const b = battleInfo(sc.id);
-          return `${sc.name}: ${b.open ? `열림${b.until ? ` (${fmtTime(b.until)}까지)` : ''}` : '닫힘'}`;
-        }).join(' · '), ' — 다른 학교 친구와는 두 학교가 모두 열려 있을 때 대결해요.') : null,
+        others.length ? h('div', { class: 'bc-others' },
+          others.map((sc) => otherBattle(sc.id, now)),
+          h('span', { class: 'bc-others-note' }, '다른 학교 친구와는 두 학교가 모두 열려 있을 때 대결해요.'),
+        ) : null,
       ),
       h('div', { class: 'bc-buttons' },
         open
@@ -207,6 +207,19 @@ export function mount(root) {
           : choices(['⚔️ 40분 동안 열기', '80분 동안 열기', '닫을 때까지 열기']),
       ),
       h('div', { class: 'bc-schedule' }, scheduleSummary(now)),
+    );
+  }
+
+  // 다른 학교 대결 상태 (예: [대서초] 🔓 열림 12:50까지 · 시간표 / [대서초] 🔒 닫힘 다음 시간표 오늘 12:10)
+  function otherBattle(sid, now) {
+    const b = battleInfo(sid);
+    const detail = b.open
+      ? (b.until ? `${fmtTime(b.until)}까지${b.auto ? ' · 시간표' : ''}` : '닫을 때까지')
+      : (b.next ? `다음 시간표 ${fmtWhen(b.next, now)}` : '');
+    return h('span', { class: `other-battle ${b.open ? 'is-open' : 'is-closed'}` },
+      schoolChip(null, { sid }),
+      h('b', null, b.open ? '🔓 열림' : '🔒 닫힘'),
+      detail ? h('small', null, detail) : null,
     );
   }
 
@@ -460,12 +473,14 @@ export function mount(root) {
     const nameWithSchool = (uid, name) => h('span', { class: 'name-with-school' }, name, schoolChip(uid));
     const order = [tsid, ...schoolList().map((sc) => sc.id).filter((id) => id !== tsid)];
     const countText = (list) => (multiSchool() ? `모두 ${list.length}명` : `${list.length}`);
-    const bySchool = (list) => (multiSchool()
+    const bySchool = (list, withBattle) => (multiSchool()
       ? h('div', { class: 'school-rows' }, order.map((sid) => {
         const xs = list.filter((s) => schoolOf(s.uid) === sid);
+        const open = battleInfo(sid).open;
         return h('div', { class: `school-row ${sid === tsid ? 'mine' : ''}` },
           schoolChip(null, { sid }),
           h('b', { class: 'school-row-count' }, `${xs.length}명`),
+          withBattle ? h('span', { class: `school-battle ${open ? 'is-open' : 'is-closed'}` }, open ? '🔓 대결 열림' : '🔒 대결 닫힘') : null,
           h('span', { class: 'school-row-names' }, xs.map((s) => s.name).join(', ') || '없음'),
         );
       }))
@@ -498,7 +513,7 @@ export function mount(root) {
       ),
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🟢'), `접속 중인 학생 (${countText(online)})`),
-        bySchool(online),
+        bySchool(online, true),
       ),
     );
   }

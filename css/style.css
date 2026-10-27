@@ -636,7 +636,16 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .rank-who { display: flex; align-items: center; min-width: 0; }
 .rank-who .rank-name { min-width: 0; }
 .name-with-school { display: inline-flex; align-items: center; }
-.bc-others { font-size: 13px; font-weight: 700; color: var(--muted); }
+.bc-others { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 4px; }
+.bc-others-note { font-size: 12px; font-weight: 700; color: var(--muted); }
+.other-battle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 6px; border-radius: 999px; font-size: 14px; font-weight: 800; }
+.other-battle .school-chip { margin-left: 0; }
+.other-battle.is-open { background: #dcf7e8; color: var(--green-dark); }
+.other-battle.is-closed { background: #eceff7; color: var(--ink-2); }
+.other-battle small { font-size: 12px; font-weight: 700; color: var(--muted); }
+.school-battle { font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.school-battle.is-open { background: #dcf7e8; color: var(--green-dark); }
+.school-battle.is-closed { background: #eceff7; color: var(--muted); }
 .school-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
 .school-row { display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap; }
 .school-row .school-chip { margin-left: 0; }
