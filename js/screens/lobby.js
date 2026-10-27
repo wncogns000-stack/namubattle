@@ -1,6 +1,7 @@
 import { h, tierBadge, tierEmblem, toast, avatar, fmtTime, fmtClock } from '../ui.js';
 import { db } from '../db.js';
-import { store, subscribe, isOnline, presenceState, myStanding, battleOpen, battleOf } from '../store.js';
+import { store, subscribe, isOnline, presenceState, myStanding, battleOpen, battleInfo } from '../store.js';
+import { fmtWhen } from '../schedule.js';
 import { schoolChip, schoolList } from '../schools.js';
 import { currentSeason, pastSeasons, filterSeason, seasonBadge } from '../seasons.js';
 import { TIERS } from '../config.js';
@@ -88,9 +89,9 @@ export function mount(root) {
   // 버튼이 있는 틀은 상태가 바뀔 때만 새로 그리고, 숫자·시간은 그 자리에서 글자만 바꿈 (누르는 순간 버튼이 바뀌지 않도록)
   let live = null; // { time, count }
   function renderMatch() {
-    const open = battleOpen();
+    const bi = battleInfo();
     const q = queueInfo();
-    if (changed(matchBox, [open, battleOf().until, q.queued, q.matched, !!session.activeGame])) buildMatch(open, q);
+    if (changed(matchBox, [bi.open, bi.until, bi.next, q.queued, q.matched, !!session.activeGame])) buildMatch(bi, q);
     if (!live) return;
     if (live.time) live.time.textContent = fmtClock(q.waitedMs);
     if (live.count) {
@@ -100,14 +101,15 @@ export function mount(root) {
     }
   }
 
-  function buildMatch(open, q) {
+  function buildMatch(bi, q) {
     matchBox.innerHTML = '';
     live = null;
-    if (!open) {
+    if (!bi.open) {
       matchBox.appendChild(h('section', { class: 'card match-card is-closed' },
         h('div', { class: 'battle-notice closed' },
           h('b', null, '🔒 지금은 대결 시간이 아니에요'),
-          h('span', null, '선생님이 대결을 열면 대결 찾기를 할 수 있어요. 그동안 혼자 연습으로 실력을 키워 봐요!'),
+          bi.next ? h('span', { class: 'match-next' }, `⏰ 다음 대결 시간: ${fmtWhen(bi.next, db.now())}`) : null,
+          h('span', null, `${bi.next ? '그때' : '선생님이 대결을 열면'} 대결 찾기를 할 수 있어요. 그동안 혼자 연습으로 실력을 키워 봐요!`),
         ),
         h('div', { class: 'match-row' },
           h('button', { class: 'btn btn-big match-btn', disabled: true }, '🔒 대결 찾기'),
@@ -116,7 +118,7 @@ export function mount(root) {
       ));
       return;
     }
-    const until = battleOf().until ? h('span', { class: 'match-until' }, `⏰ ${fmtTime(battleOf().until)}까지 대결할 수 있어요`) : null;
+    const until = bi.until ? h('span', { class: 'match-until' }, `⏰ ${fmtTime(bi.until)}까지 대결할 수 있어요`) : null;
     live = { count: h('span', null) };
     if (!q.queued) {
       matchBox.appendChild(h('section', { class: 'card match-card' },

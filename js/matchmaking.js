@@ -51,7 +51,7 @@ export function startMatchmaking() {
   db.remove(`queue/${session.uid}`).catch(() => {}); // 새로고침 전에 남아 있던 것 정리
   mm.offs.push(subscribe((_, what) => {
     if (what === 'battle' && !battleOpen() && isQueued()) {
-      leaveQueue({ msg: '선생님이 대결을 닫아서 대결 찾기를 멈췄어요.' });
+      leaveQueue({ msg: '대결 시간이 끝나서 대결 찾기를 멈췄어요.' });
       return;
     }
     if (what === 'queue' || what === 'users' || what === 'settings') check();
@@ -124,7 +124,7 @@ function check() {
       mm.wasQueued = false;
       // 대결이 시작돼서 지워진 경우는 알리지 않음
       setTimeout(() => {
-        if (!session.activeGame && !isQueued()) toast(battleOpen() ? '대결 찾기가 멈췄어요.' : '선생님이 대결을 닫아서 대결 찾기를 멈췄어요.', 'warn');
+        if (!session.activeGame && !isQueued()) toast(battleOpen() ? '대결 찾기가 멈췄어요.' : '대결 시간이 끝나서 대결 찾기를 멈췄어요.', 'warn');
       }, 1500);
     }
     renderBar();
@@ -147,8 +147,10 @@ async function tryMatch() {
   if (mm.busy || !battleOpen()) return;
   const uid = session.uid;
   // 상대도 접속 중이고 그 학교도 대결 시간이어야 함. 여러 학교면 되도록 다른 학교 친구와
+  const openBy = {}; // 학교별로 한 번만 계산
+  const schoolOpen = (sid) => (openBy[sid] ??= battleOpen(sid));
   const opp = pickOpponent(uid, store.queue, store.standings.byUid, store.settings, Math.random,
-    (u) => isOnline(u) && battleOpen(schoolOf(u)), schoolOf);
+    (u) => isOnline(u) && schoolOpen(schoolOf(u)), schoolOf);
   if (!opp) return;
   mm.busy = true;
   try {

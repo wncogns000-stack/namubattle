@@ -1,12 +1,13 @@
 // 선생님 페이지: 학생 등록, 비밀번호 초기화, 진행 중인 대결 관리, 설정, 초기화
 import { h, toast, confirmBox, promptBox, tierBadge, fmtDuration, fmtTime } from '../ui.js';
 import { db } from '../db.js';
-import { store, subscribe, isOnline, battleOpen, battleOf, schoolOf } from '../store.js';
+import { store, subscribe, isOnline, battleOf, battleInfo, scheduleOf, schoolOf } from '../store.js';
+import { DAYS, MAX_SLOTS, fmtMin, parseMin, normalizeSlots, dayText, fmtWhen, kstParts, todayKey, weekdayName, battleState } from '../schedule.js';
 import { DEFAULT_SETTINGS, LEVELS, START_RATING, TIERS } from '../config.js';
 import { formatWinRate, buildSeasonSnapshot } from '../tiers.js';
 import { currentSeason, pastSeasons, seasonData, seasonKey, seasonPeriodText, seasonStandings } from '../seasons.js';
 import { teacherExists, setupTeacher, loginTeacher, isTeacher, logoutTeacher, makeSecret, normalizeName, checkSecret, teacherSchool, isMainTeacher, teacherPath } from '../auth.js';
-import { MAIN, schoolList, multiSchool, schoolName, schoolChip, battlePath } from '../schools.js';
+import { MAIN, schoolList, multiSchool, schoolName, schoolChip, battlePath, schedulePath } from '../schools.js';
 import { cancelGame } from '../match.js';
 import { APP_VERSION } from '../update.js';
 
@@ -77,6 +78,7 @@ export function mount(root) {
     const tabs = admin ? [
       ['students', '학생 관리'],
       ['live', '진행 중인 대결'],
+      ['schedule', '대결 시간표'],
       ['settings', '게임 설정'],
       ['schools', '학교'],
       ['season', '시즌'],
@@ -84,6 +86,7 @@ export function mount(root) {
     ] : [
       ['students', '학생 관리'],
       ['live', '진행 중인 대결'],
+      ['schedule', '대결 시간표'],
       ['season', '시즌'],
       ['account', '비밀번호'],
     ];
@@ -106,9 +109,12 @@ export function mount(root) {
     );
     const drawBattle = () => {
       // 내용이 그대로면 다시 그리지 않음 (누르려던 버튼이 바뀌지 않도록)
-      const until = battleOf(tsid).until;
-      const others = schoolList().filter((sc) => sc.id !== tsid).map((sc) => [sc.id, sc.name, battleOpen(sc.id), battleOf(sc.id).until]);
-      const key = JSON.stringify([battleOpen(tsid), until, myLiveCount(), until ? Math.ceil((until - db.now()) / 60_000) : 0, others]);
+      const now = db.now();
+      const bi = battleInfo(tsid);
+      const sch = scheduleOf(tsid);
+      const others = schoolList().filter((sc) => sc.id !== tsid).map((sc) => { const b = battleInfo(sc.id); return [sc.id, sc.name, b.open, b.until]; });
+      const key = JSON.stringify([bi, myLiveCount(), bi.until ? Math.ceil((bi.until - now) / 60_000) : 0, others,
+        !!sch.on, sch.skip === todayKey(now), kstParts(now).day, dayText(sch, kstParts(now).day), Object.keys(sch.days || {}).length]);
       if (battleBox.dataset.key === key) return;
       battleBox.dataset.key = key;
       battleBox.innerHTML = '';
@@ -117,18 +123,18 @@ export function mount(root) {
     drawBattle();
     const draw = () => {
       content.innerHTML = '';
-      ({ students: drawStudents, live: drawLive, settings: drawSettings, schools: drawSchools, season: drawSeason, reset: drawReset, account: drawAccount })[tab](content);
+      ({ students: drawStudents, live: drawLive, schedule: drawSchedule, settings: drawSettings, schools: drawSchools, season: drawSeason, reset: drawReset, account: drawAccount })[tab](content);
     };
     draw();
     let lastOnline = '';
     const offBattle = subscribe((_, what) => {
       // 학교가 추가·이름 변경되면 제목·탭까지 새로 (게임 설정을 고치는 중이면 입력이 지워지지 않게 그대로)
-      if (what === 'schools' && tab !== 'settings') return renderMain();
+      if (what === 'schools' && tab !== 'settings' && tab !== 'schedule') return renderMain();
       if (what === 'battle' || what === 'live' || what === 'schools') drawBattle();
     });
     const battleTimer = setInterval(drawBattle, 15_000); // 남은 시간 표시
     const offMain = subscribe((_, what) => {
-      if (tab === 'settings' || tab === 'schools' || tab === 'account') return; // 입력 중인 값이 지워지지 않도록
+      if (tab === 'settings' || tab === 'schools' || tab === 'account' || tab === 'schedule') return; // 입력 중인 값이 지워지지 않도록
       if (tab === 'reset') return;
       if (what === 'queue' && tab !== 'live') return;
       if (what === 'presence') {
@@ -152,8 +158,9 @@ export function mount(root) {
   }
 
   function battleControl() {
-    const open = battleOpen(tsid);
-    const until = battleOf(tsid).until;
+    const now = db.now();
+    const bi = battleInfo(tsid);
+    const { open, until } = bi;
     const liveCount = myLiveCount();
     const setBattle = async (minutes) => {
       const now = db.now();
@@ -178,8 +185,10 @@ export function mount(root) {
       h('button', { class: 'btn btn-small', onclick: () => setBattle(0) }, labels[2]),
     ];
     let desc;
-    if (!open) desc = '학생들은 로그인, 혼자 연습, 랭킹·전적 보기만 할 수 있어요.';
-    else if (until) desc = `${fmtTime(until)}에 저절로 닫혀요. (${Math.max(1, Math.ceil((until - db.now()) / 60_000))}분 남음)`;
+    if (!open) {
+      desc = bi.overridden ? '시간표 시간이지만 닫아 두었어요.' : '학생들은 로그인, 혼자 연습, 랭킹·전적 보기만 할 수 있어요.';
+      if (bi.next) desc += ` 다음 시간표 ${fmtWhen(bi.next, now)}에 저절로 열려요.`;
+    } else if (until) desc = `${bi.auto ? '⏰ 시간표 시간이에요. ' : ''}${fmtTime(until)}에 저절로 닫혀요. (${Math.max(1, Math.ceil((until - now) / 60_000))}분 남음)`;
     else desc = '선생님이 닫을 때까지 열려 있어요.';
     if (!open && liveCount) desc += ` 진행 중인 대결 ${liveCount}개는 끝까지 할 수 있어요.`;
     const others = multiSchool() ? schoolList().filter((sc) => sc.id !== tsid) : [];
@@ -188,9 +197,8 @@ export function mount(root) {
         h('span', { class: 'bc-state' }, `${multiSchool() ? schoolName(tsid) + ' ' : ''}${open ? '🔓 대결 열림' : '🔒 대결 닫힘'}`),
         h('span', { class: 'bc-desc' }, desc),
         others.length ? h('span', { class: 'bc-others' }, others.map((sc) => {
-          const o = battleOpen(sc.id);
-          const u = battleOf(sc.id).until;
-          return `${sc.name}: ${o ? `열림${u ? ` (${fmtTime(u)}까지)` : ''}` : '닫힘'}`;
+          const b = battleInfo(sc.id);
+          return `${sc.name}: ${b.open ? `열림${b.until ? ` (${fmtTime(b.until)}까지)` : ''}` : '닫힘'}`;
         }).join(' · '), ' — 다른 학교 친구와는 두 학교가 모두 열려 있을 때 대결해요.') : null,
       ),
       h('div', { class: 'bc-buttons' },
@@ -198,7 +206,136 @@ export function mount(root) {
           ? [h('button', { class: 'btn btn-small btn-danger', onclick: () => setBattle(null) }, '🔒 지금 닫기'), ...choices(['지금부터 40분', '지금부터 80분', '닫을 때까지'])]
           : choices(['⚔️ 40분 동안 열기', '80분 동안 열기', '닫을 때까지 열기']),
       ),
+      h('div', { class: 'bc-schedule' }, scheduleSummary(now)),
     );
+  }
+
+  // 대결 카드 아래 한 줄: 오늘 시간표 · 오늘은 쉬기 · 시간표 고치기
+  function scheduleSummary(now) {
+    const sch = scheduleOf(tsid);
+    const day = kstParts(now).day;
+    const edit = tab === 'schedule' ? null : h('button', { class: 'btn btn-small', onclick: () => { tab = 'schedule'; renderMain(); } }, '⏰ 시간표 고치기');
+    if (!sch.on) {
+      const made = DAYS.some(([k]) => normalizeSlots(sch.days?.[k]).length);
+      return [h('span', null, made ? '⏰ 대결 시간표: 꺼짐 (선생님이 직접 열고 닫아요)' : '⏰ 쉬는 시간·점심시간마다 저절로 열고 닫으려면 대결 시간표를 만들어 보세요.'), edit];
+    }
+    const skip = sch.skip === todayKey(now);
+    const today = dayText(sch, day);
+    const text = skip ? '⏰ 오늘은 시간표로 열지 않아요 (내일부터 다시)'
+      : today ? `⏰ 오늘(${weekdayName(day)}) 시간표: ${today}` : `⏰ 오늘(${weekdayName(day)})은 시간표로 열리는 시간이 없어요`;
+    const skipBtn = skip ? h('button', { class: 'btn btn-small', onclick: () => setSkip(false) }, '오늘 다시 시간표대로')
+      : today ? h('button', { class: 'btn btn-small', onclick: () => setSkip(true) }, '오늘은 쉬기') : null;
+    return [h('span', null, text), skipBtn, edit];
+  }
+
+  async function setSkip(skip) {
+    const now = db.now();
+    try {
+      const up = { [`${schedulePath(tsid)}/skip`]: skip ? todayKey(now) : null };
+      // 쉬기로 대결이 닫히면 우리 학교 학생 중 대결 찾는 중이던 학생도 정리
+      if (skip && !battleState(battleOf(tsid), { ...scheduleOf(tsid), skip: todayKey(now) }, now).open) {
+        for (const uid of Object.keys(store.queue || {})) if (schoolOf(uid) === tsid) up[`queue/${uid}`] = null;
+      }
+      await db.update('', up);
+      toast(skip ? '오늘은 시간표로 열지 않아요. 내일부터 다시 시간표대로 열려요.' : '오늘도 시간표대로 열고 닫아요.', 'ok');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  // ───────── 대결 시간표 ─────────
+  // 요일마다 정해 둔 시간에 저절로 열고 닫기. 학교마다 하나 (그 학교 학생 모두에게 똑같이 적용)
+  function drawSchedule(el) {
+    const sch = scheduleOf(tsid);
+    const toRows = (k) => normalizeSlots(sch.days?.[k]).map(([a, b]) => ({ s: fmtMin(a), e: fmtMin(b) }));
+    const rows = Object.fromEntries(DAYS.map(([k]) => [k, toRows(k)]));
+    const made = DAYS.some(([k]) => rows[k].length);
+    const allSame = DAYS.every(([k]) => JSON.stringify(rows[k]) === JSON.stringify(rows.mon));
+    let on = made ? !!sch.on : true;
+    let same = allSame;
+    const body = h('div', { class: 'sched-body' });
+
+    function slotEditor(k, label) {
+      const list = rows[k];
+      return h('div', { class: 'sched-day' },
+        h('div', { class: 'sched-day-head' }, h('b', null, label), list.length ? null : h('span', { class: 'muted small' }, '저절로 열리지 않아요')),
+        list.map((r, i) => h('div', { class: 'sched-slot' },
+          h('input', { type: 'time', value: r.s, 'aria-label': `${label} 시작`, oninput: (e) => { r.s = e.target.value; } }),
+          h('span', null, '~'),
+          h('input', { type: 'time', value: r.e, 'aria-label': `${label} 끝`, oninput: (e) => { r.e = e.target.value; } }),
+          h('button', { class: 'btn btn-small', title: '이 시간 지우기', onclick: () => { list.splice(i, 1); paint(); } }, '✕'),
+        )),
+        h('button', { class: 'btn btn-small sched-add', disabled: list.length >= MAX_SLOTS, onclick: () => { list.push({ s: '', e: '' }); paint(); } }, '+ 시간 추가'),
+      );
+    }
+
+    function paint() {
+      body.innerHTML = '';
+      body.append(h('div', { class: 'sched-mode' },
+        h('button', { class: `btn btn-small ${same ? 'btn-primary' : ''}`, onclick: () => { same = true; paint(); } }, '매일 같은 시간'),
+        h('button', { class: `btn btn-small ${same ? '' : 'btn-primary'}`, onclick: () => {
+          // 매일 같은 시간에서 바꾸면 월요일 시간을 다른 요일에도 넣어 두고 요일마다 고치기
+          if (same) for (const [k] of DAYS) if (k !== 'mon') rows[k] = rows.mon.map((r) => ({ ...r }));
+          same = false;
+          paint();
+        } }, '요일마다 다르게'),
+      ));
+      if (same) {
+        body.append(slotEditor('mon', '월~금 매일'));
+        if (!allSame) body.append(h('p', { class: 'muted small' }, '저장하면 월~금 모두 이 시간으로 바뀌어요.'));
+      } else {
+        body.append(h('div', { class: 'sched-days' }, DAYS.map(([k, n]) => slotEditor(k, `${n}요일`))));
+      }
+    }
+    paint();
+
+    async function save() {
+      const days = {};
+      try {
+        for (const [k, n] of DAYS) {
+          const src = same ? rows.mon : rows[k];
+          const label = same ? '' : `${n}요일 `;
+          const slots = [];
+          for (const r of src) {
+            if (!r.s && !r.e) continue; // 비워 둔 줄은 빼고
+            const a = parseMin(r.s), b = parseMin(r.e);
+            if (a == null || b == null) throw new Error(`${label}시작과 끝 시각을 모두 넣어 주세요.`);
+            if (a >= b) throw new Error(`${label}${r.s}~${r.e}: 끝나는 시각이 시작 시각보다 늦어야 해요.`);
+            slots.push([a, b]);
+          }
+          days[k] = normalizeSlots(slots);
+        }
+      } catch (e) {
+        return toast(e.message, 'warn', 4000);
+      }
+      const now = db.now();
+      const cur = scheduleOf(tsid);
+      await db.set(schedulePath(tsid), { on, same, days, skip: cur.skip === todayKey(now) ? cur.skip : null, at: now });
+      const any = DAYS.some(([k]) => days[k].length);
+      toast(!on ? '저장했어요. 시간표는 꺼 두었어요.' : any ? '저장했어요. 이제 시간표대로 저절로 열리고 닫혀요.' : '저장했어요. 넣은 시간이 없어서 저절로 열리지는 않아요.', 'ok', 3500);
+      renderMain();
+    }
+
+    el.append(h('section', { class: 'card schedule-card' },
+      h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '⏰'), `${multiSchool() ? schoolName(tsid) + ' ' : ''}대결 시간표`),
+      h('p', { class: 'muted small' }, `쉬는 시간, 점심시간처럼 정해 둔 시간이 되면 대결이 저절로 열리고, 끝나면 저절로 닫혀요. ${multiSchool() ? `${schoolName(tsid)} 학생 모두에게` : '모든 학생에게'} 똑같이 적용돼요. 한국 시간 기준이고, 토·일요일에는 열리지 않아요.`),
+      h('ul', { class: 'muted small sched-notes' },
+        h('li', null, '시간이 끝나 대결이 닫혀도 진행 중인 대결은 끝까지 할 수 있어요.'),
+        h('li', null, '시간표 시간 중에 위 카드에서 직접 닫거나 열면, 그 시간이 끝날 때까지는 선생님이 누른 대로 돼요. 다음 시간에는 다시 시간표대로 열려요.'),
+        h('li', null, '시간표 밖의 시간에는 지금처럼 위 카드에서 직접 열 수 있어요.'),
+        h('li', null, '방학·행사 날에는 아래에서 시간표를 끄거나, 위 카드의 "오늘은 쉬기"를 누르세요.'),
+        multiSchool() ? h('li', null, '다른 학교 친구와는 두 학교가 모두 열려 있을 때 대결해요.') : null,
+      ),
+      h('label', { class: 'sched-on' },
+        h('input', { type: 'checkbox', checked: on, onchange: (e) => { on = e.target.checked; } }),
+        h('span', null, '시간표대로 저절로 열고 닫기'),
+      ),
+      body,
+      h('div', { class: 'row-gap' },
+        h('button', { class: 'btn btn-primary', onclick: save }, '저장'),
+        h('button', { class: 'btn', onclick: () => renderMain() }, '되돌리기'),
+      ),
+    ));
   }
 
   // ───────── 학생 관리 ─────────
@@ -461,7 +598,7 @@ export function mount(root) {
   async function removeSchool(sc, students) {
     if (students > 0) return toast('학생이 있는 학교는 지울 수 없어요. 그 학교 선생님이 먼저 학생을 지워야 해요.', 'warn', 4000);
     if (!(await confirmBox('학교 삭제', `${sc.name} 학교를 목록에서 지울까요?`, '삭제', 'danger'))) return;
-    await db.update('', { [`schools/${sc.id}`]: null, [teacherPath(sc.id)]: null, [battlePath(sc.id)]: null });
+    await db.update('', { [`schools/${sc.id}`]: null, [teacherPath(sc.id)]: null, [battlePath(sc.id)]: null, [schedulePath(sc.id)]: null });
     toast('삭제했어요.');
     renderMain();
   }
@@ -602,7 +739,7 @@ export function mount(root) {
       ),
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🗑️'), '모든 데이터 지우기'),
-        h('p', { class: 'muted small' }, '학생 계정까지 모두 지웁니다. 선생님 비밀번호는 남아요.'),
+        h('p', { class: 'muted small' }, '학생 계정까지 모두 지웁니다. 선생님 비밀번호와 대결 시간표는 남아요.'),
         h('button', { class: 'btn btn-danger', onclick: wipeAll }, '모두 지우기'),
       ),
       h('section', { class: 'card' },
@@ -650,7 +787,7 @@ export function mount(root) {
   }
 
   async function wipeAll() {
-    if (!(await typedConfirm('모든 데이터 지우기', `${multiSchool() ? '모든 학교의 ' : ''}학생 계정, 점수, 전적, 지난 시즌 기록이 모두 지워져요. (학교 목록과 선생님 비밀번호는 남아요)`))) return;
+    if (!(await typedConfirm('모든 데이터 지우기', `${multiSchool() ? '모든 학교의 ' : ''}학생 계정, 점수, 전적, 지난 시즌 기록이 모두 지워져요. (학교 목록, 선생님 비밀번호, 대결 시간표는 남아요)`))) return;
     await db.update('', {
       users: null, secrets: null, history: null, games: null, builds: null, live: null,
       active: null, invites: null, presence: null, queue: null, 'config/settings': null, 'config/battle': null, 'config/battles': null, keys: null,

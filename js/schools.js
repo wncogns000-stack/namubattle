@@ -4,6 +4,7 @@
 // - 학교마다 선생님 비밀번호와 대결 시간이 따로예요.
 //     선생님 비밀번호: 기본 학교 config/teacher, 다른 학교 config/teachers/학교
 //     대결 시간:      기본 학교 config/battle,  다른 학교 config/battles/학교
+//     대결 시간표:    기본 학교 config/schedule, 다른 학교 config/schedules/학교
 // - 랭킹·티어는 모든 학교를 합쳐서 계산하고, 학교별 합계(승·패)는 일부러 보여 주지 않아요.
 import { store, schoolOf } from './store.js';
 import { MAIN_SCHOOL_NAME } from './config.js';
@@ -13,6 +14,7 @@ export const MAIN = 'main';
 
 export { teacherPath } from './auth.js';
 export const battlePath = (sid) => (!sid || sid === MAIN ? 'config/battle' : `config/battles/${sid}`);
+export const schedulePath = (sid) => (!sid || sid === MAIN ? 'config/schedule' : `config/schedules/${sid}`);
 
 // [{ id, name }] 기본 학교가 맨 앞, 나머지는 추가한 순서
 export function schoolList() {

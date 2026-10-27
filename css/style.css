@@ -215,7 +215,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 22px 18px 60px; }
 .field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
 .field > span { font-size: 14px; font-weight: 800; color: var(--ink-2); }
 .field small { font-weight: 500; line-height: 1.45; }
-input[type=text], input[type=password], input:not([type]), select, textarea {
+input[type=text], input[type=password], input[type=time], input:not([type]), select, textarea {
   font: inherit; font-weight: 600; width: 100%;
   padding: 13px 15px; border-radius: 14px;
   border: 2px solid transparent; background: var(--soft); color: var(--ink);
@@ -637,6 +637,24 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .rank-who .rank-name { min-width: 0; }
 .name-with-school { display: inline-flex; align-items: center; }
 .bc-others { font-size: 13px; font-weight: 700; color: var(--muted); }
+.bc-schedule {
+  flex: 1 1 100%; display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding-top: 10px;
+  border-top: 1px dashed var(--line); font-size: 14px; font-weight: 700; color: var(--ink-2);
+}
+.bc-schedule > span { flex: 1 1 260px; }
+/* 대결 시간표 */
+.sched-notes { margin: 0 0 12px; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
+.sched-on { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; margin-bottom: 12px; cursor: pointer; }
+.sched-on input { width: 20px; height: 20px; }
+.sched-mode { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.sched-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+.sched-day { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 14px; background: var(--soft); margin-bottom: 12px; }
+.sched-days .sched-day { margin-bottom: 0; }
+.sched-day-head { display: flex; align-items: baseline; gap: 8px; }
+.sched-slot { display: flex; align-items: center; gap: 6px; max-width: 440px; }
+.sched-slot input { width: auto; flex: 1 1 0; min-width: 0; padding: 8px 10px; background: #fff; border-color: var(--line); font-variant-numeric: tabular-nums; }
+.sched-add { align-self: flex-start; }
+.match-next { font-weight: 800; color: var(--primary-dark); }
 .inline-select { width: auto; min-width: 120px; }
 .school-pick { display: flex; gap: 8px; flex-wrap: wrap; }
 .school-pick-btn {

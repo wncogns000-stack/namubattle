@@ -75,7 +75,7 @@ export async function startSession(uid) {
     if (directInviteOn()) return showNextInvite();
     if (session.outgoing) {
       cancelInvite(true);
-      toast(battleOpen() ? '선생님이 직접 신청을 꺼서 신청을 취소했어요.' : '선생님이 대결을 닫아서 신청을 취소했어요.', 'warn');
+      toast(battleOpen() ? '선생님이 직접 신청을 꺼서 신청을 취소했어요.' : '대결 시간이 끝나서 신청을 취소했어요.', 'warn');
     }
     if (inviteModalOpen) closeAllModals();
   }));
