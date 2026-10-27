@@ -637,6 +637,12 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .rank-who .rank-name { min-width: 0; }
 .name-with-school { display: inline-flex; align-items: center; }
 .bc-others { font-size: 13px; font-weight: 700; color: var(--muted); }
+.school-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.school-row { display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap; }
+.school-row .school-chip { margin-left: 0; }
+.school-row-count { min-width: 3.2em; font-variant-numeric: tabular-nums; }
+.school-row-names { flex: 1 1 220px; font-weight: 600; color: var(--ink-2); }
+.school-row:not(.mine) .school-row-names { color: var(--muted); }
 .bc-schedule {
   flex: 1 1 100%; display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding-top: 10px;
   border-top: 1px dashed var(--line); font-size: 14px; font-weight: 700; color: var(--ink-2);

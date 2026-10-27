@@ -454,9 +454,22 @@ export function mount(root) {
   // ───────── 진행 중인 대결 ─────────
   function drawLive(el) {
     const games = Object.entries(store.live || {}).sort((a, b) => (a[1].createdAt || 0) - (b[1].createdAt || 0));
-    const online = store.standings.list.filter((s) => isOnline(s.uid) && schoolOf(s.uid) === tsid);
+    // 접속·대결 찾는 중: 우리 학교 학생 이름과 함께, 다른 학교도 몇 명인지(이름도) 보여 줌
+    const online = store.standings.list.filter((s) => isOnline(s.uid));
     const searching = online.filter((s) => store.queue?.[s.uid]);
     const nameWithSchool = (uid, name) => h('span', { class: 'name-with-school' }, name, schoolChip(uid));
+    const order = [tsid, ...schoolList().map((sc) => sc.id).filter((id) => id !== tsid)];
+    const countText = (list) => (multiSchool() ? `모두 ${list.length}명` : `${list.length}`);
+    const bySchool = (list) => (multiSchool()
+      ? h('div', { class: 'school-rows' }, order.map((sid) => {
+        const xs = list.filter((s) => schoolOf(s.uid) === sid);
+        return h('div', { class: `school-row ${sid === tsid ? 'mine' : ''}` },
+          schoolChip(null, { sid }),
+          h('b', { class: 'school-row-count' }, `${xs.length}명`),
+          h('span', { class: 'school-row-names' }, xs.map((s) => s.name).join(', ') || '없음'),
+        );
+      }))
+      : h('p', null, list.map((s) => s.name).join(', ') || '없음'));
     el.append(
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '⚔️'), `진행 중인 대결 (${games.length})`),
@@ -479,13 +492,13 @@ export function mount(root) {
         })) : h('p', { class: 'empty' }, '진행 중인 대결이 없어요.'),
       ),
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🔎'), `대결 찾는 중 (${searching.length})`),
-        h('p', null, searching.map((s) => s.name).join(', ') || '없음'),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🔎'), `대결 찾는 중 (${countText(searching)})`),
+        bySchool(searching),
         h('p', { class: 'muted small' }, '티어 조건에 맞는 친구끼리 자동으로 짝지어져요. 맞는 친구가 없으면 나타날 때까지 기다려요.'),
       ),
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🟢'), `접속 중인 학생 (${online.length})`),
-        h('p', null, online.map((s) => s.name).join(', ') || '없음'),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🟢'), `접속 중인 학생 (${countText(online)})`),
+        bySchool(online),
       ),
     );
   }
