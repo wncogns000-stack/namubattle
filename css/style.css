@@ -927,3 +927,11 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 .opp-link .avatar { width: 28px; height: 28px; border-radius: 9px; font-size: 13px; box-shadow: none; }
 .tier-name { white-space: nowrap; }
 .invite-body .tier-badge { flex-direction: column; flex: none; gap: 2px; }
+
+/* 끝난 대결 무효 처리 (기본 학교 선생님) */
+.void-bar { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 10px; border-radius: 14px; background: #fff4f4; border: 2px dashed #f5c2c7; }
+.void-bar-text { flex: 1 1 240px; font-weight: 700; color: var(--ink-2); }
+.void-pick { width: 20px; height: 20px; cursor: pointer; }
+tr.row-picked td { background: #fff1f1; }
+.void-effects { margin: 0 0 10px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.voided-card { border: 2px solid #f5c2c7; }

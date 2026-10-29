@@ -1,11 +1,12 @@
 // 전적 보기 (#/history = 내 전적, #/history/:uid = 친구 전적, #/history/:uid/s1 = 마친 시즌의 전적)
-import { h, tierEmblem, fmtDate, fmtDuration, promptBox, toast, avatar } from '../ui.js';
+import { h, tierEmblem, fmtDate, fmtDuration, promptBox, toast, avatar, modal } from '../ui.js';
 import { db } from '../db.js';
 import { store, subscribe, standingOf } from '../store.js';
 import { LEVELS, TIERS } from '../config.js';
 import { formatWinRate, byOpponent, streakOf } from '../tiers.js';
 import { session, setPresenceState } from '../session.js';
-import { changeStudentPassword } from '../auth.js';
+import { changeStudentPassword, isMainTeacher } from '../auth.js';
+import { voidFinishedGames, restoreVoidedGames } from '../match.js';
 import { schoolChip } from '../schools.js';
 import { currentSeason, pastSeasons, parseSeasonParam, seasonData, seasonStandings, filterSeason, seasonPeriodText, seasonPicker, seasonBadge, seasonKey } from '../seasons.js';
 
@@ -17,8 +18,21 @@ export function mount(root, [uidParam, seasonParam]) {
   root.appendChild(box);
   let hist = [];
   let histLoaded = false; // 기록이 오기 전에는 '기록 없음' 대신 '불러오는 중'
+  // 기본 학교 선생님: 끝난 대결 무효 처리 (지금 시즌 대결만)
+  const admin = isMainTeacher();
+  const sel = new Set(); // 고른 대결
+  let voided = {};       // 무효 처리한 대결 (되돌리기용)
+  let busy = false;
+  const seasonStart = () => store.season?.startedAt || 0;
 
+  // 다시 그려도 보던 자리(스크롤)는 그대로
   function render() {
+    const y = window.scrollY;
+    draw();
+    if (window.scrollY !== y) window.scrollTo(0, y);
+  }
+
+  function draw() {
     box.innerHTML = '';
     const past = parseSeasonParam(seasonParam);
     const cur = currentSeason();
@@ -41,6 +55,7 @@ export function mount(root, [uidParam, seasonParam]) {
       return;
     }
     const seasonHist = filterSeason(hist, past || cur);
+    const canVoid = admin && !past;
     const st = streakOf(seasonHist);
     const opps = byOpponent(seasonHist);
     const recent = [...seasonHist].sort((a, b) => b.at - a.at);
@@ -85,18 +100,25 @@ export function mount(root, [uidParam, seasonParam]) {
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '👥'), `상대별 전적${pastSeasons().length ? ` (시즌 ${past || cur})` : ''}`),
         opps.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
-          h('thead', null, h('tr', null, h('th', null, '상대'), h('th', null, '승'), h('th', null, '패'), h('th', null, '승률'))),
+          h('thead', null, h('tr', null, h('th', null, '상대'), h('th', null, '승'), h('th', null, '패'), h('th', null, '승률'), canVoid ? h('th', null, '') : null)),
           h('tbody', null, opps.map((o) => h('tr', null,
             h('td', null, h('a', { href: past ? `#/history/${o.opp}/${seasonKey(past)}` : `#/history/${o.opp}`, class: 'opp-link' }, avatar(store.users[o.opp]?.name || o.oppName, o.opp), store.users[o.opp]?.name || o.oppName)),
             h('td', null, h('span', { class: 'res-win' }, `${o.wins}승`)), h('td', null, h('span', { class: 'res-lose' }, `${o.losses}패`)), h('td', null, formatWinRate(o.wins, o.losses)),
+            canVoid ? h('td', { class: 'actions' }, h('button', { class: 'btn btn-small', onclick: () => { for (const r of seasonHist) if (r.opp === o.opp) sel.add(r.gid); render(); } }, `이 친구와 ${o.wins + o.losses}판 모두 고르기`)) : null,
           ))),
         )) : h('p', { class: 'empty' }, histLoaded ? '아직 대결 기록이 없어요.' : '불러오는 중…'),
       ),
       h('section', { class: 'card' },
-        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '📜'), past ? `시즌 ${past} 대결` : '최근 대결'),
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '📜'), past ? `시즌 ${past} 대결` : (canVoid ? `이번 시즌 대결 (${recent.length})` : '최근 대결')),
+        canVoid && recent.length ? voidBar() : null,
         recent.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
-          h('thead', null, h('tr', null, h('th', null, '날짜'), h('th', null, '상대'), h('th', null, '결과'), h('th', null, '점수'), h('th', null, '난이도'), h('th', null, '시간'))),
-          h('tbody', null, recent.slice(0, 50).map((r) => h('tr', null,
+          h('thead', null, h('tr', null, canVoid ? h('th', null, '') : null, h('th', null, '날짜'), h('th', null, '상대'), h('th', null, '결과'), h('th', null, '점수'), h('th', null, '난이도'), h('th', null, '시간'))),
+          h('tbody', null, (canVoid ? recent : recent.slice(0, 50)).map((r) => h('tr', { class: sel.has(r.gid) ? 'row-picked' : '' },
+            canVoid ? h('td', null, h('input', { type: 'checkbox', class: 'void-pick', 'aria-label': '이 대결 고르기', checked: sel.has(r.gid), onchange: (e) => {
+              if (e.target.checked) sel.add(r.gid); else sel.delete(r.gid);
+              e.target.closest('tr').classList.toggle('row-picked', e.target.checked);
+              updateBar();
+            } })) : null,
             h('td', null, fmtDate(r.at)),
             h('td', null, h('span', { class: 'opp-link' }, avatar(store.users[r.opp]?.name || r.oppName, r.opp), store.users[r.opp]?.name || r.oppName)),
             h('td', null, h('span', { class: r.win ? 'res-win' : 'res-lose' }, r.win ? '승' : '패'), r.reason === 'surrender' ? h('span', { class: 'muted small' }, ' (기권)') : null),
@@ -106,6 +128,108 @@ export function mount(root, [uidParam, seasonParam]) {
           ))),
         )) : h('p', { class: 'empty' }, histLoaded ? '아직 대결 기록이 없어요.' : '불러오는 중…'),
       ),
+      canVoid ? voidedSection(name) : '',
+    );
+  }
+
+  // ───────── 끝난 대결 무효 처리 (기본 학교 선생님) ─────────
+  let bar = null;
+  function voidBar() {
+    bar = {
+      count: h('b', null, ''),
+      go: h('button', { class: 'btn btn-small btn-danger', onclick: () => voidPicked() }, '선택한 대결 무효 처리'),
+      clear: h('button', { class: 'btn btn-small', onclick: () => { sel.clear(); render(); } }, '고른 것 지우기'),
+    };
+    updateBar();
+    return h('div', { class: 'void-bar' },
+      h('span', { class: 'void-bar-text' }, '👩‍🏫 선생님: 무효로 할 대결을 고르세요 ', bar.count),
+      bar.go, bar.clear,
+    );
+  }
+
+  function updateBar() {
+    if (!bar) return;
+    bar.count.textContent = sel.size ? `(${sel.size}판 고름)` : '';
+    bar.go.disabled = !sel.size || busy;
+    bar.clear.disabled = !sel.size || busy;
+  }
+
+  async function voidPicked() {
+    const picked = hist.filter((r) => sel.has(r.gid));
+    if (!picked.length) return;
+    // 학생별로 바뀌는 점수·승패 미리 보기
+    const eff = {};
+    const add = (u, nm, rating, wins, losses) => { const x = (eff[u] ||= { nm, rating: 0, wins: 0, losses: 0 }); x.rating += rating; x.wins += wins; x.losses += losses; };
+    const me = store.users[uid]?.name || '';
+    for (const r of picked) {
+      add(uid, me, -r.delta, r.win ? 1 : 0, r.win ? 0 : 1);
+      add(r.opp, store.users[r.opp]?.name || r.oppName, r.delta, r.win ? 0 : 1, r.win ? 1 : 0);
+    }
+    const line = (x) => h('li', null, h('b', null, x.nm), ` 점수 ${x.rating >= 0 ? '+' : ''}${x.rating}`,
+      x.wins ? ` · ${x.wins}승 빠짐` : '', x.losses ? ` · ${x.losses}패 빠짐` : '');
+    const ok = await modal({
+      title: `대결 ${picked.length}판 무효 처리`,
+      body: h('div', null,
+        h('p', null, '이 대결들이 없었던 것처럼 두 학생의 점수와 승패에서 빼요.'),
+        h('ul', { class: 'void-effects' }, Object.values(eff).map(line)),
+        h('p', { class: 'muted small' }, '다른 학생의 점수는 바뀌지 않아요. 아래 "무효 처리한 대결"에서 언제든 되돌릴 수 있어요.'),
+      ),
+      buttons: [{ label: '취소', value: false }, { label: `${picked.length}판 무효 처리`, value: true, kind: 'danger' }],
+    });
+    if (ok !== true) return;
+    busy = true; updateBar();
+    try {
+      const n = await voidFinishedGames(picked.map((r) => r.gid), seasonStart());
+      sel.clear();
+      toast(n ? `${n}판을 무효 처리했어요.` : '무효로 할 수 있는 대결이 없었어요.', n ? 'ok' : 'warn');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      busy = false;
+      render();
+    }
+  }
+
+  function voidedSection(name) {
+    const list = Object.entries(voided)
+      .map(([gid, v]) => ({ gid, ...v }))
+      .filter((v) => (v.winner === uid || v.loser === uid) && (v.endedAt || 0) >= seasonStart() && !v.restoring)
+      .sort((a, b) => b.endedAt - a.endedAt);
+    if (!list.length) return '';
+    const restore = async (gids) => {
+      if (busy) return;
+      busy = true;
+      try {
+        const n = await restoreVoidedGames(gids, seasonStart());
+        toast(`${n}판을 되돌렸어요.`, 'ok');
+      } catch (e) {
+        toast(e.message, 'error');
+      } finally {
+        busy = false;
+        render();
+      }
+    };
+    return h('section', { class: 'card voided-card' },
+      h('div', { class: 'card-head' },
+        h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🚫'), `무효 처리한 대결 (${list.length})`),
+        h('button', { class: 'btn btn-small', onclick: () => restore(list.map((v) => v.gid)) }, '모두 되돌리기'),
+      ),
+      h('p', { class: 'muted small' }, `${name}의 점수·승패에서 빠진 대결이에요. 되돌리면 그 대결의 점수와 승패가 다시 더해져요.`),
+      h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
+        h('thead', null, h('tr', null, ['날짜', '상대', '원래 결과', '점수', '무효 처리한 때', ''].map((t) => h('th', null, t)))),
+        h('tbody', null, list.map((v) => {
+          const opp = v.winner === uid ? v.loser : v.winner;
+          const win = v.winner === uid;
+          return h('tr', null,
+            h('td', null, fmtDate(v.endedAt)),
+            h('td', null, h('span', { class: 'opp-link' }, avatar(store.users[opp]?.name || v.players?.[opp], opp), store.users[opp]?.name || v.players?.[opp] || '')),
+            h('td', null, h('span', { class: win ? 'res-win' : 'res-lose' }, win ? '승' : '패')),
+            h('td', null, `${win ? '+' : '-'}${v.delta}`),
+            h('td', null, fmtDate(v.at)),
+            h('td', { class: 'actions' }, h('button', { class: 'btn btn-small', onclick: () => restore([v.gid]) }, '되돌리기')),
+          );
+        })),
+      )),
     );
   }
 
@@ -130,8 +254,15 @@ export function mount(root, [uidParam, seasonParam]) {
     }
   }
 
-  const offHist = db.on(`history/${uid}`, (v) => { hist = Object.values(v || {}); histLoaded = true; render(); });
+  const offHist = db.on(`history/${uid}`, (v) => {
+    hist = Object.entries(v || {}).map(([gid, r]) => ({ ...r, gid: r.gid || gid }));
+    // 없어진 대결은 고른 것에서도 빼기
+    for (const gid of [...sel]) if (!v?.[gid]) sel.delete(gid);
+    histLoaded = true;
+    render();
+  });
+  const offVoided = admin ? db.on('voided', (v) => { voided = v || {}; render(); }) : () => {};
   const off = subscribe((_, what) => { if (what === 'users' || what === 'season' || what === 'seasons' || what === 'schools') render(); });
   render();
-  return () => { off(); offHist(); };
+  return () => { off(); offHist(); offVoided(); };
 }

@@ -359,6 +359,7 @@ export function mount(root) {
       h('section', { class: 'card' },
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🧑‍🎓'), `${multiSchool() ? schoolName(tsid) + ' ' : ''}학생 목록 (${list.length}명)`),
         multiSchool() ? h('p', { class: 'muted small' }, '티어와 순위는 모든 학교 학생을 합쳐서 정해져요.') : null,
+        admin ? h('p', { class: 'muted small' }, `🚫 끝난 대결 무효 처리: 이름을 누르면 나오는 전적 화면에서 대결을 골라 무효로 할 수 있어요.${multiSchool() ? ' 다른 학교 학생은 🏆 랭킹에서 이름을 누르세요.' : ''} (${schoolName(MAIN)} 선생님만)`) : null,
         list.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
           h('thead', null, h('tr', null, ['번호', '이름', '티어', '점수', '전적', '승률', '접속', ''].map((t) => h('th', null, t)))),
           h('tbody', null, list.map((s) => h('tr', null,
@@ -804,7 +805,7 @@ export function mount(root) {
 
   async function seasonReset() {
     if (!(await typedConfirm('점수·전적 초기화', `${multiSchool() ? '모든 학교의 ' : ''}모든 학생의 점수가 1000점, 0승 0패로 돌아가고 전적이 지워져요. (지난 시즌 기록 보관함은 그대로예요. 기록을 남기고 새로 시작하려면 '시즌' 탭의 시즌 마치기를 쓰세요.)`))) return;
-    const up = { history: null, games: null, builds: null, live: null, active: null, invites: null, queue: null };
+    const up = { history: null, games: null, builds: null, live: null, active: null, invites: null, queue: null, voided: null };
     for (const uid of Object.keys(store.users)) {
       up[`users/${uid}/rating`] = START_RATING;
       up[`users/${uid}/wins`] = 0;
@@ -819,7 +820,7 @@ export function mount(root) {
     await db.update('', {
       users: null, secrets: null, history: null, games: null, builds: null, live: null,
       active: null, invites: null, presence: null, queue: null, 'config/settings': null, 'config/battle': null, 'config/battles': null, keys: null,
-      seasons: null, 'config/season': null,
+      seasons: null, 'config/season': null, voided: null,
     });
     toast('모두 지웠어요.', 'ok');
   }
