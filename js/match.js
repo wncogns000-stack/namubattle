@@ -116,7 +116,8 @@ export async function cancelGame(gid, by) {
 }
 
 // ───────── 끝난 대결 무효 처리 (기본 학교 선생님) ─────────
-// 제재: 이긴 학생에게서만 그 대결로 얻은 점수와 승을 빼요. 진 학생의 점수·패와 전적은 그대로예요. (mode: 'winner')
+// 제재: 이긴 학생에게서만 그 대결로 얻은 점수와 승을 빼요. 진 학생의 점수·패는 그대로예요. (mode: 'winner')
+// 학생들이 '무효'를 보고 웅성거리지 않도록 두 학생 전적 목록에서 그 대결을 아예 빼요. (표시도 남기지 않음)
 // (처음 만든 방식 mode 없음 = 두 학생 모두 되돌림. 그렇게 무효로 한 기록도 그대로 되돌릴 수 있어요)
 // 원래 기록은 voided/대결 에 보관해서 되돌릴 수 있어요:
 //   voided/대결 = { at, mode, winner, loser, players, delta, createdAt, endedAt, level, history: { 학생: 원래 전적 한 줄 } }
@@ -169,7 +170,8 @@ export async function voidFinishedGames(gids, seasonStart = 0) {
   await Promise.all(Object.entries(sumByUser(claimed.map((x) => x.rec), 1)).map(([uid, a]) => addToUser(uid, a)));
   const up = {};
   for (const { gid, rec } of claimed) {
-    up[`history/${rec.winner}/${gid}`] = null; // 진 학생 전적은 그대로 (졌던 기록은 남음)
+    up[`history/${rec.winner}/${gid}`] = null;
+    up[`history/${rec.loser}/${gid}`] = null; // 진 학생 전적 목록에서도 빼기 (점수·패 숫자는 그대로)
     up[`games/${gid}/voided`] = now;
   }
   await db.update('', up);
@@ -189,11 +191,22 @@ export async function restoreVoidedGames(gids, seasonStart = 0) {
   await Promise.all(Object.entries(sumByUser(claimed.map((x) => x.rec), -1)).map(([uid, a]) => addToUser(uid, a)));
   const up = {};
   for (const { gid, rec } of claimed) {
-    const back = rec.mode === 'winner' ? [rec.winner] : [rec.winner, rec.loser];
-    for (const uid of back) if (rec.history?.[uid]) up[`history/${uid}/${gid}`] = rec.history[uid];
+    for (const uid of [rec.winner, rec.loser]) if (rec.history?.[uid]) up[`history/${uid}/${gid}`] = rec.history[uid];
     up[`games/${gid}/voided`] = null;
     up[`voided/${gid}`] = null;
   }
   await db.update('', up);
   return claimed.length;
+}
+
+// 예전 버전(2026-10-29.2)으로 무효 처리해서 진 학생 전적에 남아 있는 대결을 목록에서 빼기 (기본 학교 선생님 화면이 열릴 때 한 번)
+export async function hideVoidedLosses() {
+  const voided = (await db.get('voided')) || {};
+  const recs = Object.entries(voided).filter(([, v]) => v?.mode === 'winner' && !v.restoring && v.loser);
+  if (!recs.length) return 0;
+  const still = await Promise.all(recs.map(([gid, v]) => db.get(`history/${v.loser}/${gid}`)));
+  const up = {};
+  recs.forEach(([gid, v], i) => { if (still[i]) up[`history/${v.loser}/${gid}`] = null; });
+  if (Object.keys(up).length) await db.update('', up);
+  return Object.keys(up).length;
 }

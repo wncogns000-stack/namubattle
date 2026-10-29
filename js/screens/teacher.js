@@ -8,7 +8,7 @@ import { formatWinRate, buildSeasonSnapshot } from '../tiers.js';
 import { currentSeason, pastSeasons, seasonData, seasonKey, seasonPeriodText, seasonStandings } from '../seasons.js';
 import { teacherExists, setupTeacher, loginTeacher, isTeacher, logoutTeacher, makeSecret, normalizeName, checkSecret, teacherSchool, isMainTeacher, teacherPath } from '../auth.js';
 import { MAIN, schoolList, multiSchool, schoolName, schoolChip, battlePath, schedulePath } from '../schools.js';
-import { cancelGame } from '../match.js';
+import { cancelGame, hideVoidedLosses } from '../match.js';
 import { APP_VERSION } from '../update.js';
 
 const LAST_SCHOOL_KEY = 'namubattle-teacher-school';
@@ -23,6 +23,7 @@ export function mount(root) {
   let off = null;
   let tsid = MAIN;   // 로그인한 선생님의 학교
   let admin = false; // 기본 학교 선생님인지
+  let cleaned = false; // 무효 처리한 대결 정리 (한 번만)
 
   async function start() {
     box.innerHTML = '';
@@ -72,6 +73,8 @@ export function mount(root) {
     off && off();
     tsid = teacherSchool() || MAIN;
     admin = isMainTeacher();
+    // 예전 버전으로 무효 처리해 진 학생 전적에 남아 있던 대결을 목록에서 빼기
+    if (admin && !cleaned) { cleaned = true; hideVoidedLosses().catch(() => {}); }
     const content = h('div');
     const battleBox = h('div');
     // 기본 학교 선생님: 모든 탭 / 다른 학교 선생님: 자기 학교 학생·대결만

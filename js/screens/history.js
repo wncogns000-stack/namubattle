@@ -174,7 +174,8 @@ export function mount(root, [uidParam, seasonParam]) {
       body: h('div', null,
         h('p', null, '제재로 이긴 학생에게서만 이 대결들로 얻은 점수와 승을 빼요.'),
         h('ul', { class: 'void-effects' }, Object.values(eff).map(line)),
-        h('p', { class: 'muted small' }, `진 학생(${losers.join(', ')})의 점수·패와 전적은 그대로예요. 다른 학생 점수도 바뀌지 않아요. 아래 "무효 처리한 대결"에서 언제든 되돌릴 수 있어요.`),
+        h('p', { class: 'muted small' }, `진 학생(${losers.join(', ')})의 점수·패는 그대로예요. 다른 학생 점수도 바뀌지 않아요.`),
+        h('p', { class: 'muted small' }, '두 학생의 전적 목록에서는 이 대결이 아예 사라져요(학생 화면에 "무효" 표시도 없음). 이 화면 아래 "무효 처리한 대결"에서 선생님만 보고 되돌릴 수 있어요.'),
       ),
       buttons: [{ label: '취소', value: false }, { label: `${picked.length}판 무효 처리`, value: true, kind: 'danger' }],
     });
@@ -216,7 +217,7 @@ export function mount(root, [uidParam, seasonParam]) {
         h('h3', { class: 'card-title' }, h('span', { class: 'title-icon' }, '🚫'), `무효 처리한 대결 (${list.length})`),
         h('button', { class: 'btn btn-small', onclick: () => restore(list.map((v) => v.gid)) }, '모두 되돌리기'),
       ),
-      h('p', { class: 'muted small' }, `${josa(name, '이/가')} 들어 있는 무효 처리한 대결이에요. 이긴 학생에게서 점수와 승을 뺐어요. 되돌리면 다시 더해져요.`),
+      h('p', { class: 'muted small' }, `${josa(name, '이/가')} 들어 있는 무효 처리한 대결이에요. 이긴 학생에게서 점수와 승을 뺐고, 학생들 전적 목록에서는 보이지 않아요(선생님만 보는 목록). 되돌리면 다시 더해지고 전적에도 다시 나타나요.`),
       h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
         h('thead', null, h('tr', null, ['날짜', '상대', '결과', '점수', '뺀 것', '무효 처리한 때', ''].map((t) => h('th', null, t)))),
         h('tbody', null, list.map((v) => {
