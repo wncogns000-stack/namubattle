@@ -205,7 +205,7 @@ async function showNextInvite() {
     await db.update(`invites/${session.uid}/${inv.from}`, { status: battleOpen() ? 'off' : 'closed' }).catch(() => {});
     return showNextInvite();
   }
-  if (store.queue?.[session.uid]?.match) return; // 자동 매칭 수락 창이 떠 있는 동안은 잠시 미룸
+  if (store.queue?.[session.uid]?.match) return; // 자동 매칭 '상대를 찾았어요' 창이 떠 있는 동안은 잠시 미룸
   if (location.hash.startsWith('#/game/')) return;
   handledInvites.add(inv.from + ':' + inv.at);
   inviteModalOpen = true;

@@ -59,5 +59,5 @@ export function levelForTierIndex(idx) {
 export const ONLINE_WINDOW_MS = 45_000;
 export const HEARTBEAT_MS = 15_000;
 export const INVITE_TTL_MS = 60_000;
-// 자동 매칭에서 상대를 찾았을 때 '수락'을 누를 수 있는 시간(ms)
-export const READY_MS = 15_000;
+// 자동 매칭에서 상대를 찾은 뒤 대결이 시작되기까지 세는 시간(ms). 수락 없이 이 시간이 지나면 시작
+export const MATCH_COUNTDOWN_MS = 5_000;

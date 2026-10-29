@@ -935,3 +935,11 @@ label.inline select { width: auto; padding: 8px 36px 8px 12px; }
 tr.row-picked td { background: #fff1f1; }
 .void-effects { margin: 0 0 10px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
 .voided-card { border: 2px solid #f5c2c7; }
+/* 자동 매칭: 상대를 찾은 뒤 5초 세기 */
+.found-countdown { display: flex; justify-content: center; }
+.found-count {
+  min-width: 96px; height: 96px; padding: 0 18px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 52px; color: #fff; background: linear-gradient(135deg, var(--primary-2), var(--primary-dark));
+  box-shadow: 0 10px 24px rgba(76, 111, 255, 0.35); font-variant-numeric: tabular-nums;
+}
+.found-modal .ready-status { font-size: 16px; }

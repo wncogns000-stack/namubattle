@@ -116,9 +116,10 @@ export async function cancelGame(gid, by) {
 }
 
 // ───────── 끝난 대결 무효 처리 (기본 학교 선생님) ─────────
-// 그 대결로 바뀐 점수와 승패만 두 학생에게서 빼요 (다른 학생 점수는 그대로).
+// 제재: 이긴 학생에게서만 그 대결로 얻은 점수와 승을 빼요. 진 학생의 점수·패와 전적은 그대로예요. (mode: 'winner')
+// (처음 만든 방식 mode 없음 = 두 학생 모두 되돌림. 그렇게 무효로 한 기록도 그대로 되돌릴 수 있어요)
 // 원래 기록은 voided/대결 에 보관해서 되돌릴 수 있어요:
-//   voided/대결 = { at, winner, loser, players, delta, createdAt, endedAt, level, history: { 학생: 원래 전적 한 줄 } }
+//   voided/대결 = { at, mode, winner, loser, players, delta, createdAt, endedAt, level, history: { 학생: 원래 전적 한 줄 } }
 // seasonStart: 지금 시즌이 시작한 시각 (지난 시즌 대결은 점수가 이미 새로 시작했으니 건드리지 않음)
 
 // 학생 점수·승패를 더하거나 빼기 (동시에 끝난 다른 대결과 겹쳐도 안전하게 트랜잭션으로)
@@ -139,7 +140,7 @@ function sumByUser(recs, sign) {
   };
   for (const rec of recs) {
     add(rec.winner, -rec.delta, -1, 0);
-    add(rec.loser, rec.delta, 0, -1);
+    if (rec.mode !== 'winner') add(rec.loser, rec.delta, 0, -1);
   }
   return adj;
 }
@@ -154,7 +155,7 @@ export async function voidFinishedGames(gids, seasonStart = 0) {
     const [hw, hl] = await Promise.all([db.get(`history/${g.winner}/${gid}`), db.get(`history/${g.loser}/${gid}`)]);
     const delta = Math.abs(g.result?.delta ?? hw?.delta ?? hl?.delta ?? 0);
     return { gid, rec: {
-      at: now, winner: g.winner, loser: g.loser, players: g.players || {}, delta,
+      at: now, mode: 'winner', winner: g.winner, loser: g.loser, players: g.players || {}, delta,
       createdAt: g.createdAt || 0, endedAt: g.endedAt || 0, level: g.puzzle?.level || 0,
       history: { [g.winner]: hw || null, [g.loser]: hl || null },
     } };
@@ -168,8 +169,7 @@ export async function voidFinishedGames(gids, seasonStart = 0) {
   await Promise.all(Object.entries(sumByUser(claimed.map((x) => x.rec), 1)).map(([uid, a]) => addToUser(uid, a)));
   const up = {};
   for (const { gid, rec } of claimed) {
-    up[`history/${rec.winner}/${gid}`] = null;
-    up[`history/${rec.loser}/${gid}`] = null;
+    up[`history/${rec.winner}/${gid}`] = null; // 진 학생 전적은 그대로 (졌던 기록은 남음)
     up[`games/${gid}/voided`] = now;
   }
   await db.update('', up);
@@ -189,7 +189,8 @@ export async function restoreVoidedGames(gids, seasonStart = 0) {
   await Promise.all(Object.entries(sumByUser(claimed.map((x) => x.rec), -1)).map(([uid, a]) => addToUser(uid, a)));
   const up = {};
   for (const { gid, rec } of claimed) {
-    for (const uid of [rec.winner, rec.loser]) if (rec.history?.[uid]) up[`history/${uid}/${gid}`] = rec.history[uid];
+    const back = rec.mode === 'winner' ? [rec.winner] : [rec.winner, rec.loser];
+    for (const uid of back) if (rec.history?.[uid]) up[`history/${uid}/${gid}`] = rec.history[uid];
     up[`games/${gid}/voided`] = null;
     up[`voided/${gid}`] = null;
   }
